@@ -17,7 +17,23 @@ describe('HealthController (e2e)', () => {
           useValue: {
             check: jest.fn().mockResolvedValue({
               success: true,
-              message: 'Server is running',
+              message: 'Server is ready',
+              data: {
+                app: 'ok',
+                database: 'ok',
+                redis: 'ok',
+              },
+            }),
+            checkLiveness: jest.fn().mockResolvedValue({
+              success: true,
+              message: 'Server is alive',
+              data: {
+                app: 'ok',
+              },
+            }),
+            checkReadiness: jest.fn().mockResolvedValue({
+              success: true,
+              message: 'Server is ready',
               data: {
                 app: 'ok',
                 database: 'ok',
@@ -45,7 +61,39 @@ describe('HealthController (e2e)', () => {
       .expect(({ body }) => {
         expect(body).toMatchObject({
           success: true,
-          message: 'Server is running',
+          message: 'Server is ready',
+          data: {
+            app: 'ok',
+            database: 'ok',
+            redis: 'ok',
+          },
+        });
+      });
+  });
+
+  it('/health/live (GET)', async () => {
+    await request(app.getHttpServer())
+      .get('/health/live')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          success: true,
+          message: 'Server is alive',
+          data: {
+            app: 'ok',
+          },
+        });
+      });
+  });
+
+  it('/health/ready (GET)', async () => {
+    await request(app.getHttpServer())
+      .get('/health/ready')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          success: true,
+          message: 'Server is ready',
           data: {
             app: 'ok',
             database: 'ok',

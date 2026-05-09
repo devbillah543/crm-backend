@@ -18,6 +18,11 @@ import { DatabaseHealthService } from './database.service';
         extra: {
           min: configService.get<number>('database.poolMin', 2),
           max: configService.get<number>('database.poolMax', 20),
+          connectionTimeoutMillis: configService.get<number>(
+            'database.connectTimeoutMs',
+            10000,
+          ),
+          idleTimeoutMillis: configService.get<number>('database.idleTimeoutMs', 30000),
         },
         ssl: configService.get<boolean>('database.ssl', false)
           ? { rejectUnauthorized: false }

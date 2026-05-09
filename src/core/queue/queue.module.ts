@@ -16,6 +16,8 @@ import { NotificationProcessor } from '../../jobs/processors/notification.proces
         prefix: configService.get<string>('queue.prefix', 'sidago'),
         connection: {
           url: configService.getOrThrow<string>('redis.url'),
+          connectTimeout: configService.get<number>('redis.connectTimeoutMs', 10000),
+          maxRetriesPerRequest: configService.get<number>('redis.maxRetriesPerRequest', 3),
         },
         defaultJobOptions: {
           attempts: configService.get<number>('queue.defaultAttempts', 3),

@@ -8,4 +8,5 @@ export default registerAs('app', () => ({
   allowedOrigins: process.env.ALLOWED_ORIGINS ?? 'http://localhost:3000',
   cookieDomain: process.env.COOKIE_DOMAIN ?? 'localhost',
   nodeEnv: process.env.NODE_ENV ?? 'development',
+  trustProxy: process.env.APP_TRUST_PROXY === 'true',
 }));

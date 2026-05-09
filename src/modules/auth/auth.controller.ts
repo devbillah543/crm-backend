@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -79,6 +81,7 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Rotate refresh token',
     description:
@@ -119,6 +122,7 @@ export class AuthController {
   @UseGuards(AccessTokenGuard)
   @ApiBearerAuth()
   @Post('logout')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Logout current session',
     description: 'Revokes the currently authenticated device session.',
@@ -129,12 +133,13 @@ export class AuthController {
   })
   async logoutCurrent(@CurrentUser() user: JwtUser) {
     await this.authSessionService.logoutCurrent(user);
-    return { message: 'Current session logged out successfully' };
+    return { success: true, message: 'Current session logged out successfully' };
   }
 
   @UseGuards(AccessTokenGuard)
   @ApiBearerAuth()
   @Post('logout-all')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Logout from all sessions',
     description: 'Revokes every active session for the current account.',
@@ -145,11 +150,12 @@ export class AuthController {
   })
   async logoutAll(@CurrentUser() user: JwtUser) {
     await this.authSessionService.logoutAll(user);
-    return { message: 'All sessions logged out successfully' };
+    return { success: true, message: 'All sessions logged out successfully' };
   }
 
   @Public()
   @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Verify email',
     description: 'Consumes an email verification token and marks the user email as verified.',
@@ -158,13 +164,15 @@ export class AuthController {
     description: 'Email verified successfully.',
     schema: { example: { success: true, message: 'Email verified successfully' } },
   })
-  verifyEmail(@Body() dto: VerifyEmailDto) {
-    return this.authService.verifyEmail(dto.token);
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    const result = await this.authService.verifyEmail(dto.token);
+    return { success: true, message: result.message };
   }
 
   @UseGuards(AccessTokenGuard)
   @ApiBearerAuth()
   @Post('resend-verification-email')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Resend verification email',
     description: 'Queues a new verification email for the authenticated user when needed.',
@@ -173,12 +181,14 @@ export class AuthController {
     description: 'Verification email queued.',
     schema: { example: { success: true, message: 'Verification email queued successfully' } },
   })
-  resendVerificationEmail(@CurrentUser() user: JwtUser) {
-    return this.authService.resendVerificationEmail(user);
+  async resendVerificationEmail(@CurrentUser() user: JwtUser) {
+    const result = await this.authService.resendVerificationEmail(user);
+    return { success: true, message: result.message };
   }
 
   @Public()
   @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Forgot password',
     description:
@@ -193,12 +203,14 @@ export class AuthController {
       },
     },
   })
-  forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto);
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    const result = await this.authService.forgotPassword(dto);
+    return { success: true, message: result.message };
   }
 
   @Public()
   @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Reset password',
     description: 'Consumes a password reset token and applies a new password.',
@@ -207,8 +219,9 @@ export class AuthController {
     description: 'Password reset completed.',
     schema: { example: { success: true, message: 'Password reset successfully' } },
   })
-  resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.authService.resetPassword(dto);
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    const result = await this.authService.resetPassword(dto);
+    return { success: true, message: result.message };
   }
 
   @UseGuards(AccessTokenGuard)
@@ -270,7 +283,7 @@ export class AuthController {
   })
   async revokeSession(@CurrentUser() user: JwtUser, @Param('sessionId') sessionId: string) {
     await this.authSessionService.revokeSpecificSession(user, sessionId);
-    return { message: 'Session revoked successfully' };
+    return { success: true, message: 'Session revoked successfully' };
   }
 
   @UseGuards(AccessTokenGuard)

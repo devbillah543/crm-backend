@@ -1,544 +1,671 @@
-# Sidago CRM Backend Boilerplate
+# Sidago CRM Backend
 
-NestJS 11 boilerplate for a production-oriented backend with PostgreSQL, Redis, BullMQ, Swagger, structured logging, request context, rate limiting, storage abstraction, and health monitoring.
+Production-oriented NestJS backend foundation with PostgreSQL, Redis, BullMQ, JWT auth, Swagger, structured logging, storage abstraction, scheduler support, and a tested authentication/account module.
 
-This repository is currently a backend foundation, not a complete CRM implementation yet. The core platform modules are in place and verified, while most business-domain modules still need to be built on top of this scaffold.
+This repository is production-ready for its current implemented scope: platform infrastructure plus auth/account/session management. It is not yet a complete CRM product, because most business-domain modules still need to be built on top of this foundation.
 
-## Current Status
+## What This Project Includes
 
-- Build passes
-- Lint passes
-- Unit tests pass
-- E2E tests pass
-- Compiled app boots successfully
-- Health endpoint confirms app, PostgreSQL, and Redis connectivity
+- NestJS 11 with modular architecture
+- PostgreSQL with TypeORM migrations
+- Redis-backed cache, queue, and session support
+- BullMQ for background jobs
+- JWT access and rotating refresh token auth
+- Multi-device session tracking
+- Email verification, forgot password, reset password
+- Local and S3-ready storage abstraction
+- Structured logging with file output
+- Swagger/OpenAPI docs
+- Liveness and readiness health endpoints
+- CI workflow for lint, build, unit tests, and e2e tests
 
-Verified on May 9, 2026 with:
+## Current Feature Scope
 
-```bash
-npm run build
-npm run lint
-npm test -- --runInBand
-npm run test:e2e -- --runInBand
-```
+Implemented and verified today:
 
-Live runtime check:
+- authentication and account management
+- role and permission synchronization
+- database migrations and seed flow
+- health, liveness, and readiness checks
+- queue-backed mail sending
+- local test/log mail transport
+- Docker and Compose setup
 
-```bash
-GET http://127.0.0.1:4000/api/health
-```
+Not fully implemented yet:
 
-Expected response:
-
-```json
-{
-  "success": true,
-  "message": "Server is running",
-  "data": {
-    "app": "ok",
-    "database": "ok",
-    "redis": "ok"
-  }
-}
-```
-
-## Tech Stack
-
-- NestJS 11
-- TypeScript 5
-- PostgreSQL with TypeORM
-- Redis with `ioredis`
-- BullMQ for queues
-- Socket.IO with Redis adapter support
-- Joi config validation
-- Pino logging
-- Jest and Supertest
-- Swagger / OpenAPI
-
-## Implemented Platform Modules
-
-- `src/common`
-  Shared decorators, DTOs, interceptors, filters, and utility types
-- `src/config`
-  Centralized config loaders and environment validation
-- `src/core/database`
-  TypeORM bootstrap, health check, and database auto-create helper
-- `src/core/redis`
-  Shared Redis client
-- `src/core/cache`
-  Simple cache helper built on Redis
-- `src/core/logger`
-  Pino-based application logger with file output
-- `src/core/queue`
-  BullMQ root config and queue service
-- `src/core/scheduler`
-  Redis-backed cron locking support
-- `src/core/storage`
-  Local and S3 storage abstraction
-- `src/core/mailer`
-  Nodemailer wrapper
-- `src/core/request-context`
-  Async local request context storage
-- `src/core/websocket`
-  Socket service and Redis adapter scaffold
-- `src/modules/auth`
-  Enterprise-style authentication, account management, session tracking, and email flows
-- `src/modules/health`
-  Health endpoint
-- `src/jobs`
-  Queue processors for mail, notifications, and maintenance jobs
-
-## Global Runtime Behavior
-
-The application currently enables:
-
-- Helmet
-- Compression
-- Cookie parsing
-- Global validation pipe with transformation and whitelist enforcement
-- Global exception filter
-- Global request-context interceptor
-- Global response-transform interceptor
-- Global throttling guard
-- URI versioning
-- Swagger setup
+- leads, reports, organizations, notifications, dashboards, and broader CRM business workflows
+- richer RBAC enforcement across business modules
+- real-time gateways with domain events
 
 ## Project Structure
 
 ```text
 src/
+  app.module.ts
+  main.ts
   common/
   config/
   core/
-    cache/
-    database/
-    logger/
-    mailer/
-    queue/
-    redis/
-    request-context/
-    scheduler/
-    storage/
-    websocket/
   database/
-    entities/
-    migrations/
-    seeders/
-    subscribers/
   jobs/
-    cron/
-    processors/
   modules/
-    auth/
-    health/
   scripts/
 test/
 ```
 
-## Getting Started
+### `src/common`
 
-### 1. Install dependencies
+Shared cross-cutting building blocks:
 
-```bash
-npm install
+- decorators like `@Public()` and `@CurrentUser()`
+- global exception filter
+- global response and request-context interceptors
+- shared types and utility helpers
+
+Use this folder for framework-level utilities that should be reusable across many modules.
+
+### `src/config`
+
+Centralized configuration loaders and startup validation.
+
+Important files:
+
+- `app.config.ts`
+- `auth.config.ts`
+- `database.config.ts`
+- `redis.config.ts`
+- `mailer.config.ts`
+- `production-safety.ts`
+- `env.validation.ts`
+
+This is where runtime settings are parsed, normalized, and protected. If you add a new env variable, add it here and also add validation in `env.validation.ts`.
+
+### `src/core`
+
+Infrastructure modules that support the whole app.
+
+#### `src/core/cache`
+
+Redis-backed cache helper for simple `remember(...)` patterns.
+
+#### `src/core/database`
+
+TypeORM setup, health check, datasource bootstrap, and auto-create helper.
+
+#### `src/core/logger`
+
+Application logger built on Pino with file output under `storage/logs`.
+
+#### `src/core/mailer`
+
+Mailer abstraction.
+
+Supported modes:
+
+- SMTP via `MAIL_HOST=<real host>`
+- log transport via `MAIL_HOST=log`
+
+When `MAIL_HOST=log`, outgoing emails are written to `storage/logs/mail.log`.
+
+#### `src/core/queue`
+
+BullMQ configuration and queue service.
+
+Use this for background work like:
+
+- email sending
+- notifications
+- analytics aggregation
+
+#### `src/core/redis`
+
+Shared Redis client for cache, throttling helpers, and other infra features.
+
+#### `src/core/request-context`
+
+Async request context storage for request-scoped metadata.
+
+#### `src/core/scheduler`
+
+Scheduler support and cron infrastructure.
+
+#### `src/core/storage`
+
+Storage abstraction with local and S3-ready drivers.
+
+Current use case:
+
+- avatar upload handling
+
+#### `src/core/websocket`
+
+Shared websocket service scaffold for user/role-targeted event emission.
+
+### `src/database`
+
+Database layer.
+
+#### `src/database/entities`
+
+TypeORM entity definitions for platform and auth data.
+
+Examples:
+
+- `user.entity.ts`
+- `user-session.entity.ts`
+- `role.entity.ts`
+- `permission.entity.ts`
+- `auth-action-token.entity.ts`
+
+#### `src/database/migrations`
+
+Schema migrations. Each migration is kept as an explicit file and applied through the CLI commands.
+
+#### `src/database/seeders`
+
+Database seeding logic.
+
+Current seeders include:
+
+- permission seeder
+- super admin user seeder
+- admin user seeder
+- manager user seeder
+- agent user seeder
+- database seeder runner
+
+### `src/jobs`
+
+Background job processors.
+
+Current processors include:
+
+- mail processor
+- notification processor
+
+Add queue-driven workloads here instead of putting long-running tasks directly in controllers or services.
+
+### `src/modules`
+
+Feature modules.
+
+#### `src/modules/auth`
+
+The main business-ready module in this repo today.
+
+Contains:
+
+- controller
+- DTOs
+- guards
+- repositories
+- strategies
+- cron cleanup
+- services
+- email templates
+
+Implemented capabilities:
+
+- login with email and password
+- short-lived access token
+- rotating refresh token
+- multi-device sessions
+- current-session logout
+- logout all sessions
+- revoke specific session
+- list active sessions
+- email verification
+- resend verification email
+- forgot password
+- reset password
+- profile update
+- avatar upload
+- audit logging for auth-related events
+
+#### `src/modules/health`
+
+Health endpoints used by runtime checks and deployment platforms.
+
+Routes:
+
+- `GET /api/health/live`
+- `GET /api/health/ready`
+- `GET /api/health`
+
+### `src/scripts`
+
+Standalone CLI entry files for operational tasks.
+
+Current scripts:
+
+- migration run
+- migration revert
+- sync permissions
+
+### `test`
+
+Automated tests.
+
+Includes:
+
+- unit tests
+- auth e2e tests
+- health e2e tests
+- test env bootstrap
+
+Both unit and e2e tests load `.env.test` automatically.
+
+## Runtime Architecture
+
+At a high level:
+
+1. `main.ts` boots the Nest app
+2. config is loaded and validated
+3. production safety rules are checked
+4. global middleware, pipes, filters, interceptors, versioning, and Swagger are registered
+5. modules from `AppModule` wire infrastructure and feature modules together
+
+This gives you a clear split:
+
+- `core` handles infrastructure
+- `modules` handle product features
+- `database` handles persistence
+- `scripts` handle operational CLI tasks
+
+## Authentication Flow
+
+The auth module is the strongest implemented feature in the repo.
+
+### Login
+
+`POST /api/v1/auth/login`
+
+Request:
+
+```json
+{
+  "email": "superadmin@example.com",
+  "password": "SuperAdmin123!"
+}
 ```
 
-### 2. Create your environment file
+Response:
 
-```bash
-cp .env.example .env
+```json
+{
+  "success": true,
+  "message": "Request successful",
+  "data": {
+    "accessToken": "jwt-access-token",
+    "refreshToken": "jwt-refresh-token"
+  }
+}
 ```
 
-### 3. Start PostgreSQL and Redis
+### Refresh Token
 
-If you want local containers:
+`POST /api/v1/auth/refresh`
 
-```bash
-docker compose up -d postgres redis
+Request:
+
+```json
+{
+  "refreshToken": "jwt-refresh-token"
+}
 ```
 
-### 4. Run migrations
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Request successful",
+  "data": {
+    "accessToken": "new-jwt-access-token",
+    "refreshToken": "new-jwt-refresh-token"
+  }
+}
+```
+
+### Current User
+
+`GET /api/v1/auth/me`
+
+Returns the current account profile, roles, and permissions.
+
+### Session Management
+
+Routes:
+
+- `POST /api/v1/auth/logout`
+- `POST /api/v1/auth/logout-all`
+- `GET /api/v1/auth/sessions`
+- `DELETE /api/v1/auth/sessions/:sessionId`
+
+The system tracks:
+
+- device name
+- browser
+- OS
+- IP address
+- location when headers are available
+- user agent
+- last activity
+
+### Email and Password Flows
+
+Routes:
+
+- `POST /api/v1/auth/verify-email`
+- `POST /api/v1/auth/resend-verification-email`
+- `POST /api/v1/auth/forgot-password`
+- `POST /api/v1/auth/reset-password`
+
+### Profile Update
+
+`PATCH /api/v1/auth/profile`
+
+Supports:
+
+- first name
+- last name
+- full name
+- email
+- password change
+- avatar upload
+
+## Health Endpoints
+
+### `GET /api/health/live`
+
+Checks if the process is alive.
+
+### `GET /api/health/ready`
+
+Checks if the app is ready to serve traffic by verifying:
+
+- PostgreSQL
+- Redis
+
+### `GET /api/health`
+
+Backward-compatible readiness endpoint.
+
+## Environment Files
+
+### `.env`
+
+Use for local development or runtime deployment values.
+
+### `.env.test`
+
+Used automatically by Jest and e2e tests.
+
+Default test database:
+
+- `sidago_test`
+
+Default test mail transport:
+
+- `MAIL_HOST=log`
+
+### `.env.example`
+
+Template and reference for required settings.
+
+## CLI and Commands
+
+These are the main operational commands in this project.
+
+### App Commands
+
+```bash
+npm run start:dev
+npm run start
+npm run start:prod
+npm run build
+npm run lint
+npm run format
+```
+
+### Test Commands
+
+```bash
+npm test
+npm test -- --runInBand
+npm run test:e2e
+npm run test:e2e -- --runInBand
+```
+
+### Migration Commands
+
+Generate a migration from entity changes:
+
+```bash
+npm run migration:generate
+```
+
+Run pending migrations:
 
 ```bash
 npm run migration:run
 ```
 
-### 5. Start the app
+Revert the last migration:
 
 ```bash
+npm run migration:revert
+```
+
+Raw TypeORM CLI access:
+
+```bash
+npm run typeorm -- migration:show
+```
+
+### Permission Sync Command
+
+Sync roles and permissions from `src/config/permission.config.ts`:
+
+```bash
+npm run sync:permission
+```
+
+Use this when:
+
+- permission definitions change
+- role mappings change
+- a fresh environment needs RBAC data
+
+### Seeder Commands
+
+Run all configured seeders in sequence:
+
+```bash
+npm run db:seed
+```
+
+Run one specific seeder:
+
+```bash
+npm run db:seed -- --fileName=super-admin-user
+```
+
+Available seeder names today:
+
+- `permission`
+- `super-admin-user`
+- `admin-user`
+- `manager-user`
+- `agent-user`
+
+### Typical First-Time Setup
+
+```bash
+npm install
+cp .env.example .env
+npm run migration:run
+npm run sync:permission
+npm run db:seed
 npm run start:dev
 ```
 
-Default base URL:
-
-```text
-http://localhost:4000/api
-```
-
-Versioned API example:
-
-```text
-http://localhost:4000/api/v1/auth/login
-```
-
-Swagger, when enabled:
-
-```text
-http://localhost:4000/docs
-```
-
-## Available Scripts
-
-- `npm run build`
-  Build the production bundle
-- `npm run start`
-  Run the compiled server
-- `npm run start:dev`
-  Run in watch mode
-- `npm run start:prod`
-  Run compiled production build
-- `npm run lint`
-  Run ESLint with auto-fix
-- `npm run format`
-  Run Prettier
-- `npm test`
-  Run unit tests
-- `npm run test:e2e`
-  Run e2e tests
-- `npm run migration:generate`
-  Generate a TypeORM migration
-- `npm run migration:run`
-  Run pending migrations
-- `npm run migration:revert`
-  Revert the latest migration
-- `npm run seed:run`
-  Run seeders
-
-## Environment Variables
-
-### App
-
-- `NODE_ENV`
-- `PORT`
-- `APP_NAME`
-- `APP_VERSION`
-- `GLOBAL_PREFIX`
-- `ALLOWED_ORIGINS`
-- `COOKIE_DOMAIN`
-- `SWAGGER_ENABLED`
-- `SWAGGER_PATH`
-- `FRONTEND_URL`
-
-### Database
-
-- `DATABASE_URL`
-- `DATABASE_ADMIN_URL`
-- `DATABASE_SSL`
-- `DATABASE_LOGGING`
-- `DATABASE_POOL_MIN`
-- `DATABASE_POOL_MAX`
-
-### Redis
-
-- `REDIS_URL`
-- `REDIS_KEY_PREFIX`
-
-### JWT
-
-- `JWT_ACCESS_SECRET`
-- `JWT_REFRESH_SECRET`
-- `JWT_ACCESS_EXPIRES_IN`
-- `JWT_REFRESH_EXPIRES_IN`
-
-### Mail
-
-- `MAIL_HOST`
-- `MAIL_PORT`
-- `MAIL_SECURE`
-- `MAIL_USER`
-- `MAIL_PASS`
-- `MAIL_FROM`
-
-### Auth
-
-- `AUTH_BCRYPT_ROUNDS`
-- `AUTH_MAX_FAILED_LOGINS`
-- `AUTH_LOCK_MINUTES`
-- `AUTH_VERIFICATION_EXPIRES_HOURS`
-- `AUTH_RESET_PASSWORD_EXPIRES_MINUTES`
-- `AUTH_SECURITY_ALERT_COOLDOWN_MINUTES`
-- `AUTH_AVATAR_MAX_SIZE_BYTES`
-- `AUTH_SESSION_TOUCH_THROTTLE_SECONDS`
-
-### Throttling
-
-- `THROTTLE_TTL`
-- `THROTTLE_LIMIT`
-- `THROTTLE_AUTH_LIMIT`
-
-### Queues
-
-- `QUEUE_PREFIX`
-- `QUEUE_DEFAULT_ATTEMPTS`
-- `QUEUE_DEFAULT_BACKOFF`
-- `QUEUE_CONCURRENCY`
-
-### Storage
-
-- `STORAGE_DRIVER`
-- `STORAGE_LOCAL_ROOT`
-- `STORAGE_LOCAL_BASE_URL`
-- `STORAGE_S3_BUCKET`
-- `STORAGE_S3_REGION`
-- `STORAGE_S3_ENDPOINT`
-- `STORAGE_S3_PUBLIC_BASE_URL`
-- `STORAGE_S3_FORCE_PATH_STYLE`
-- `STORAGE_S3_PREFIX`
-- `STORAGE_S3_ACCESS_KEY_ID`
-- `STORAGE_S3_SECRET_ACCESS_KEY`
-
-### WebSocket / Logging
-
-- `WS_CORS_ORIGIN`
-- `LOG_FILE_MODE`
-
-Use [.env.example](./.env.example) as the source of truth for defaults.
-
 ## Docker
 
-The repository includes:
+Files:
 
 - [Dockerfile](./Dockerfile)
 - [docker-compose.yml](./docker-compose.yml)
+- [.dockerignore](./.dockerignore)
 
-Bring up the full stack:
+### Start Local Services
+
+```bash
+docker compose up -d postgres redis
+```
+
+### Start Full Stack
 
 ```bash
 docker compose up --build
 ```
 
-## Testing
+The Docker setup includes:
+
+- non-root runtime container
+- multi-stage build
+- API healthcheck
+- PostgreSQL healthcheck
+- Redis healthcheck
+
+## CI
+
+GitHub Actions workflow:
+
+- [ci.yml](./.github/workflows/ci.yml)
+
+It currently runs:
+
+- lint
+- build
+- unit tests
+- e2e tests
+
+## How To Extend This Project
+
+### Add a New Feature Module
+
+Recommended structure:
+
+```text
+src/modules/your-feature/
+  your-feature.module.ts
+  your-feature.controller.ts
+  dto/
+  services/
+  repositories/
+  guards/
+```
+
+Then:
+
+1. create entities in `src/database/entities`
+2. generate a migration
+3. import the module in `AppModule`
+4. add DTO validation and Swagger docs
+5. add unit and e2e tests
+
+### Add New Permissions
+
+Edit:
+
+- [src/config/permission.config.ts](./src/config/permission.config.ts)
+
+Then run:
+
+```bash
+npm run sync:permission
+```
+
+### Add New Seeders
+
+1. create a seeder under `src/database/seeders`
+2. make it return the shared seeder result shape
+3. register it in `src/database/seeders/db.seeder.ts`
+
+Then run:
+
+```bash
+npm run db:seed
+```
+
+### Add New Queue Jobs
+
+1. enqueue from services using `QueueService`
+2. implement processors in `src/jobs/processors`
+3. keep heavy work out of request handlers
+
+### Add New Storage Use Cases
+
+Use `StorageService` instead of directly writing files.
+
+That lets you switch between:
+
+- local storage
+- S3-compatible storage
+
+without rewriting feature code.
+
+## Testing Strategy
 
 Current automated coverage includes:
 
-- utility test for pagination normalization
-- unit test for health service behavior
-- unit test for local storage safety and file handling
-- unit test for auth device metadata extraction
-- e2e test for the `/health` endpoint contract
+- health service unit tests
+- local storage unit tests
+- auth device metadata unit tests
+- pagination utility unit tests
+- auth end-to-end flows
+- health end-to-end flows
 
-Run everything:
+This repo uses `.env.test` automatically for tests so the suite stays isolated from development settings.
+
+## Production Notes
+
+The implemented foundation is production-ready, but only for the scope that exists in this repository today.
+
+Before real deployment, you still need:
+
+- real production secrets
+- real production database and Redis
+- real SMTP or third-party mail provider
+- real storage configuration
+- deployment platform env management
+
+Production startup safety already blocks several dangerous states, including:
+
+- placeholder JWT secrets
+- identical access and refresh secrets
+- empty production CORS configuration
+- `MAIL_HOST=log` in production
+
+## Verification Status
+
+Latest verified checks:
 
 ```bash
-npm run build
 npm run lint
+npm run build
 npm test -- --runInBand
 npm run test:e2e -- --runInBand
 ```
 
-## What This Boilerplate Solves Well
+Current verified results:
 
-- centralized config validation
-- app bootstrap hardening
-- enterprise-style auth and session tracking foundation
-- production-friendly logging
-- reusable infrastructure modules
-- queue and scheduler foundation
-- storage abstraction for local or S3-backed files
-- consistent API response wrapping
-- baseline error handling
+- unit tests: passed
+- e2e tests: passed
+- build: passed
+- lint: passed
 
-## Authentication Module
+## License
 
-The backend now includes a production-oriented auth/account management module under `src/modules/auth`.
-
-Implemented capabilities:
-
-- email and password login
-- short-lived access token plus rotating refresh token
-- multi-session and multi-device tracking
-- current-session logout
-- logout from all sessions
-- active sessions listing with pagination
-- revoke a specific session
-- email verification flow
-- forgot password and reset password flow
-- profile update including avatar upload
-- account lock after repeated failed login attempts
-- refresh token reuse detection with session revocation
-- queued email delivery for verification, reset, and security alerts
-
-Session/device metadata is derived from the request, not from client-provided body fields. The system records:
-
-- inferred device name
-- browser
-- operating system
-- IP address
-- location when proxy/CDN headers are available
-- user agent
-- last activity timestamp
-
-## Auth API Examples
-
-Base path:
-
-```text
-/api/v1/auth
-```
-
-### `POST /api/v1/auth/login`
-
-Request:
-
-```json
-{
-  "email": "jane.doe@sidago.com",
-  "password": "StrongPassword!123"
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Request successful",
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-  }
-}
-```
-
-### `POST /api/v1/auth/refresh`
-
-Request:
-
-```json
-{
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Request successful",
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-  }
-}
-```
-
-### `GET /api/v1/auth/me`
-
-Response shape:
-
-```json
-{
-  "success": true,
-  "message": "Request successful",
-  "data": {
-    "id": "0f1fcbf8-c02f-4ddf-9d8c-5379f8316183",
-    "email": "jane.doe@sidago.com",
-    "firstName": "Jane",
-    "lastName": "Doe",
-    "fullName": "Jane Doe",
-    "emailVerifiedAt": "2026-05-09T10:00:00.000Z",
-    "avatarUrl": "/storage/local/avatars/users/123/avatar.webp",
-    "roles": ["admin"],
-    "permissions": ["users.read"]
-  }
-}
-```
-
-### `GET /api/v1/auth/sessions`
-
-Response shape:
-
-```json
-{
-  "success": true,
-  "message": "Request successful",
-  "data": {
-    "items": [
-      {
-        "id": "79ed9f8c-f1e6-4793-9d8b-3e0adbe4cbda",
-        "deviceName": "Desktop Device",
-        "browser": "Chrome",
-        "os": "Windows",
-        "ipAddress": "203.0.113.10",
-        "location": "Dhaka, BD",
-        "userAgent": "Mozilla/5.0 ...",
-        "issuedAt": "2026-05-09T10:00:00.000Z",
-        "lastActiveAt": "2026-05-09T10:15:00.000Z",
-        "expiresAt": "2026-05-16T10:00:00.000Z",
-        "isCurrent": true
-      }
-    ],
-    "meta": {
-      "page": 1,
-      "limit": 20,
-      "total": 1
-    }
-  }
-}
-```
-
-## Email Templates
-
-Auth emails are no longer built inline in service code. They are stored as file-based templates under:
-
-```text
-src/modules/auth/templates/
-  verification-email.subject.txt
-  verification-email.html
-  password-reset.subject.txt
-  password-reset.html
-  security-alert.subject.txt
-  security-alert.html
-```
-
-These templates are rendered by `AuthMailTemplateService` and queued through the mail job processor.
-
-## Current Gaps
-
-This repo is stable as a boilerplate, but it is not yet a complete enterprise CRM. Important gaps still include:
-
-- RBAC exists as a foundation, but business-role enforcement is still minimal
-- no domain modules such as users, leads, reports, notifications, or organizations
-- no real websocket gateway usage yet
-- queue usage is still light outside auth/mail and sample jobs
-- no concrete seeders for real business data
-- limited automated integration coverage across the new auth flows
-
-## Recommended Next Steps
-
-- implement the actual CRM business modules
-- add DTO validation and contract tests for each API module
-- add integration tests against a disposable PostgreSQL and Redis stack
-- add CI to run build, lint, unit, and e2e checks automatically
-- expand auth e2e coverage with seeded test accounts
-- add real websocket gateways and richer business queue jobs
-- expand authorization and permission enforcement across future domain modules
-
-## Boilerplate Verification Report
-
-Latest verification result:
-
-- `build`: passed
-- `lint`: passed
-- `unit tests`: passed
-- `e2e tests`: passed
-- `runtime health probe`: passed
-
-Notes:
-
-- App boot confirmed against the local `.env` values.
-- Health endpoint returned successful database and Redis connectivity.
-- The scaffolded infrastructure is wired and operational.
-- The auth/account module is now implemented and build-verified.
-- Business-domain completeness beyond auth is still pending.
+This project is currently marked `UNLICENSED`.

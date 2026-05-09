@@ -54,6 +54,7 @@ export class AuthSessionService {
     const refreshExpiresAt = this.resolveRefreshExpiryDate();
 
     const session = this.userSessionRepository.create({
+      id: randomUUID(),
       userId: user.id,
       tokenVersion: 1,
       issuedAt: new Date(),

@@ -73,6 +73,10 @@ export class DeviceMetadataService {
       return null;
     }
 
+    if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+      return 'iOS';
+    }
+
     if (userAgent.includes('Windows')) {
       return 'Windows';
     }
@@ -83,10 +87,6 @@ export class DeviceMetadataService {
 
     if (userAgent.includes('Android')) {
       return 'Android';
-    }
-
-    if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
-      return 'iOS';
     }
 
     if (userAgent.includes('Linux')) {

@@ -1,6 +1,8 @@
 node_modules
 dist
 .env
+.env.production
+.env.test
 coverage
 npm-debug.log*
 
@@ -10,3 +12,4 @@ tsconfig.tsbuildinfo
 test/**/*.js
 test/**/*.js.map
 test/**/*.d.ts
+.github/

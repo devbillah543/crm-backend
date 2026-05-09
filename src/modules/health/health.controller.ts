@@ -1,5 +1,5 @@
 import { Controller, Get, VERSION_NEUTRAL } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
 import { HealthService } from './health.service';
 
 @ApiTags('Health')
@@ -9,16 +9,16 @@ export class HealthController {
 
   @Get()
   @ApiOperation({
-    summary: 'Health check',
+    summary: 'Readiness check',
     description:
-      'Verifies that the server is running and confirms connectivity to the configured database and Redis instances.',
+      'Verifies that the server is ready to serve traffic and confirms connectivity to the configured database and Redis instances.',
   })
   @ApiOkResponse({
     description: 'Server, database, and Redis are all healthy.',
     schema: {
       example: {
         success: true,
-        message: 'Server is running',
+        message: 'Server is ready',
         data: {
           app: 'ok',
           database: 'ok',
@@ -27,7 +27,47 @@ export class HealthController {
       },
     },
   })
+  @ApiServiceUnavailableResponse({
+    description: 'One or more critical dependencies are unavailable.',
+  })
   async check(): Promise<Record<string, unknown>> {
     return this.healthService.check();
+  }
+
+  @Get('live')
+  @ApiOperation({
+    summary: 'Liveness check',
+    description: 'Verifies that the application process is alive.',
+  })
+  @ApiOkResponse({
+    description: 'Application process is alive.',
+    schema: {
+      example: {
+        success: true,
+        message: 'Server is alive',
+        data: {
+          app: 'ok',
+        },
+      },
+    },
+  })
+  async live(): Promise<Record<string, unknown>> {
+    return this.healthService.checkLiveness();
+  }
+
+  @Get('ready')
+  @ApiOperation({
+    summary: 'Explicit readiness check',
+    description:
+      'Verifies that the server is ready to serve traffic and confirms connectivity to the configured database and Redis instances.',
+  })
+  @ApiOkResponse({
+    description: 'Server is ready.',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'One or more critical dependencies are unavailable.',
+  })
+  async ready(): Promise<Record<string, unknown>> {
+    return this.healthService.checkReadiness();
   }
 }

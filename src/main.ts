@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { resolve } from 'path';
 import { AppModule } from './app.module';
+import { validateProductionSafety } from './config/production-safety';
 import { setupSwagger } from './config/swagger.config';
 import { ensureDatabaseExists } from './core/database/ensure-database';
 import { AppLoggerService } from './core/logger/logger.service';
@@ -30,6 +31,10 @@ async function bootstrap(): Promise<void> {
   const logger = app.get(AppLoggerService);
 
   app.useLogger(logger);
+  validateProductionSafety(configService);
+  if (configService.get<boolean>('app.trustProxy', false)) {
+    app.set('trust proxy', 1);
+  }
   app.use(helmet());
   app.use(compression());
   app.use(cookieParser());
