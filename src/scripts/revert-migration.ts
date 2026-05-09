@@ -1,27 +1,25 @@
 import 'reflect-metadata';
 import { exec } from 'child_process';
 import { config as loadEnv } from 'dotenv';
-import { ensureDatabaseExists } from '../core/database/ensure-database';
 
 loadEnv();
 
 async function run(): Promise<void> {
-  console.log('[migration:run] running');
+  console.log('[migration:revert] running');
 
   try {
-    await ensureDatabaseExists();
-    await runTypeormMigrations();
-    console.log('[migration:run] success');
+    await runTypeormRevert();
+    console.log('[migration:revert] success');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[migration:run] error: ${message}`);
+    console.error(`[migration:revert] error: ${message}`);
     process.exitCode = 1;
   }
 }
 
-function runTypeormMigrations(): Promise<void> {
+function runTypeormRevert(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const command = 'npm run typeorm:raw -- migration:run';
+    const command = 'npm run typeorm:raw -- migration:revert';
     const child = exec(command, { cwd: process.cwd(), env: process.env });
 
     child.stdout?.pipe(process.stdout);
@@ -33,7 +31,7 @@ function runTypeormMigrations(): Promise<void> {
         return;
       }
 
-      reject(new Error(`migration:run command exited with code ${code ?? 'unknown'}`));
+      reject(new Error(`migration:revert command exited with code ${code ?? 'unknown'}`));
     });
     child.on('error', reject);
   });
