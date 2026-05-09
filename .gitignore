@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+coverage
+npm-debug.log*
+
+storage/logs/
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+test/**/*.js
+test/**/*.js.map
+test/**/*.d.ts
