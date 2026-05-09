@@ -18,6 +18,8 @@ export abstract class BaseUuidEntity {
   }
 }
 
+export abstract class UuidPrimaryEntity extends BaseUuidEntity {}
+
 export abstract class TimestampedEntity extends BaseUuidEntity {
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   @Index()
@@ -32,3 +34,5 @@ export abstract class SoftDeletableEntity extends TimestampedEntity {
   @Index()
   deletedAt!: Date | null;
 }
+
+export abstract class AuditedSoftDeleteEntity extends SoftDeletableEntity {}
