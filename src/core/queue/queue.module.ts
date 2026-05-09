@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QueueService } from './queue.service';
+import { MailProcessor } from '../../jobs/processors/mail.processor';
 import { NotificationProcessor } from '../../jobs/processors/notification.processor';
 
 @Global()
@@ -33,7 +34,7 @@ import { NotificationProcessor } from '../../jobs/processors/notification.proces
       { name: 'analytics' },
     ),
   ],
-  providers: [QueueService, NotificationProcessor],
+  providers: [QueueService, MailProcessor, NotificationProcessor],
   exports: [QueueService, BullModule],
 })
 export class QueueModule {}

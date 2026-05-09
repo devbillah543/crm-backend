@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import appConfig from './config/app.config';
+import authConfig from './config/auth.config';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
 import mailerConfig from './config/mailer.config';
@@ -25,6 +26,7 @@ import { RequestContextModule } from './core/request-context/request-context.mod
 import { SchedulerCoreModule } from './core/scheduler/scheduler.module';
 import { StorageModule } from './core/storage/storage.module';
 import { WebsocketModule } from './core/websocket/websocket.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -34,6 +36,7 @@ import { HealthModule } from './modules/health/health.module';
       cache: true,
       load: [
         appConfig,
+        authConfig,
         databaseConfig,
         jwtConfig,
         mailerConfig,
@@ -67,6 +70,7 @@ import { HealthModule } from './modules/health/health.module';
     StorageModule,
     MailerModule,
     WebsocketModule,
+    AuthModule,
     HealthModule,
   ],
   providers: [

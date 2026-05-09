@@ -3,9 +3,11 @@ import { config as loadEnv } from 'dotenv';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { resolve } from 'path';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger.config';
 import { ensureDatabaseExists } from './core/database/ensure-database';
@@ -23,7 +25,7 @@ async function bootstrap(): Promise<void> {
       throw error;
     }
   }
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   const configService = app.get(ConfigService);
   const logger = app.get(AppLoggerService);
 
@@ -39,6 +41,10 @@ async function bootstrap(): Promise<void> {
   if (globalPrefix.trim()) {
     app.setGlobalPrefix(globalPrefix);
   }
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -47,6 +53,17 @@ async function bootstrap(): Promise<void> {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
+  const storageDriver = configService.get<string>('storage.driver', 'local');
+  if (storageDriver === 'local') {
+    const root = resolve(
+      process.cwd(),
+      configService.get<string>('storage.local.root', 'storage/local'),
+    );
+    const baseUrl = configService.get<string>('storage.local.baseUrl', '/storage/local');
+    app.useStaticAssets(root, {
+      prefix: `${baseUrl.replace(/\/$/, '')}/`,
+    });
+  }
   setupSwagger(app, configService);
 
   app.enableShutdownHooks();

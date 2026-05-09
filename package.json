@@ -18,7 +18,8 @@
     "migration:generate": "npm run typeorm -- migration:generate src/database/migrations/AutoMigration",
     "migration:run": "ts-node -r tsconfig-paths/register src/scripts/run-migrations.ts",
     "migration:revert": "ts-node -r tsconfig-paths/register src/scripts/revert-migration.ts",
-    "seed:run": "ts-node -r tsconfig-paths/register src/database/seeders/run.ts",
+    "db:seed": "ts-node -r tsconfig-paths/register src/database/seeders/db.seeder.ts",
+    "sync:permission": "ts-node -r tsconfig-paths/register src/scripts/sync-permissions.ts",
     "prepare": "husky"
   },
   "lint-staged": {

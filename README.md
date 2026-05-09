@@ -81,10 +81,12 @@ Expected response:
   Async local request context storage
 - `src/core/websocket`
   Socket service and Redis adapter scaffold
+- `src/modules/auth`
+  Enterprise-style authentication, account management, session tracking, and email flows
 - `src/modules/health`
   Health endpoint
 - `src/jobs`
-  Sample queue processor and maintenance cron job
+  Queue processors for mail, notifications, and maintenance jobs
 
 ## Global Runtime Behavior
 
@@ -98,6 +100,7 @@ The application currently enables:
 - Global request-context interceptor
 - Global response-transform interceptor
 - Global throttling guard
+- URI versioning
 - Swagger setup
 
 ## Project Structure
@@ -126,6 +129,7 @@ src/
     cron/
     processors/
   modules/
+    auth/
     health/
   scripts/
 test/
@@ -171,10 +175,16 @@ Default base URL:
 http://localhost:4000/api
 ```
 
+Versioned API example:
+
+```text
+http://localhost:4000/api/v1/auth/login
+```
+
 Swagger, when enabled:
 
 ```text
-http://localhost:4000
+http://localhost:4000/docs
 ```
 
 ## Available Scripts
@@ -249,6 +259,17 @@ http://localhost:4000
 - `MAIL_PASS`
 - `MAIL_FROM`
 
+### Auth
+
+- `AUTH_BCRYPT_ROUNDS`
+- `AUTH_MAX_FAILED_LOGINS`
+- `AUTH_LOCK_MINUTES`
+- `AUTH_VERIFICATION_EXPIRES_HOURS`
+- `AUTH_RESET_PASSWORD_EXPIRES_MINUTES`
+- `AUTH_SECURITY_ALERT_COOLDOWN_MINUTES`
+- `AUTH_AVATAR_MAX_SIZE_BYTES`
+- `AUTH_SESSION_TOUCH_THROTTLE_SECONDS`
+
 ### Throttling
 
 - `THROTTLE_TTL`
@@ -303,6 +324,7 @@ Current automated coverage includes:
 - utility test for pagination normalization
 - unit test for health service behavior
 - unit test for local storage safety and file handling
+- unit test for auth device metadata extraction
 - e2e test for the `/health` endpoint contract
 
 Run everything:
@@ -318,6 +340,7 @@ npm run test:e2e -- --runInBand
 
 - centralized config validation
 - app bootstrap hardening
+- enterprise-style auth and session tracking foundation
 - production-friendly logging
 - reusable infrastructure modules
 - queue and scheduler foundation
@@ -325,17 +348,172 @@ npm run test:e2e -- --runInBand
 - consistent API response wrapping
 - baseline error handling
 
+## Authentication Module
+
+The backend now includes a production-oriented auth/account management module under `src/modules/auth`.
+
+Implemented capabilities:
+
+- email and password login
+- short-lived access token plus rotating refresh token
+- multi-session and multi-device tracking
+- current-session logout
+- logout from all sessions
+- active sessions listing with pagination
+- revoke a specific session
+- email verification flow
+- forgot password and reset password flow
+- profile update including avatar upload
+- account lock after repeated failed login attempts
+- refresh token reuse detection with session revocation
+- queued email delivery for verification, reset, and security alerts
+
+Session/device metadata is derived from the request, not from client-provided body fields. The system records:
+
+- inferred device name
+- browser
+- operating system
+- IP address
+- location when proxy/CDN headers are available
+- user agent
+- last activity timestamp
+
+## Auth API Examples
+
+Base path:
+
+```text
+/api/v1/auth
+```
+
+### `POST /api/v1/auth/login`
+
+Request:
+
+```json
+{
+  "email": "jane.doe@sidago.com",
+  "password": "StrongPassword!123"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Request successful",
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+### `POST /api/v1/auth/refresh`
+
+Request:
+
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Request successful",
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+### `GET /api/v1/auth/me`
+
+Response shape:
+
+```json
+{
+  "success": true,
+  "message": "Request successful",
+  "data": {
+    "id": "0f1fcbf8-c02f-4ddf-9d8c-5379f8316183",
+    "email": "jane.doe@sidago.com",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "fullName": "Jane Doe",
+    "emailVerifiedAt": "2026-05-09T10:00:00.000Z",
+    "avatarUrl": "/storage/local/avatars/users/123/avatar.webp",
+    "roles": ["admin"],
+    "permissions": ["users.read"]
+  }
+}
+```
+
+### `GET /api/v1/auth/sessions`
+
+Response shape:
+
+```json
+{
+  "success": true,
+  "message": "Request successful",
+  "data": {
+    "items": [
+      {
+        "id": "79ed9f8c-f1e6-4793-9d8b-3e0adbe4cbda",
+        "deviceName": "Desktop Device",
+        "browser": "Chrome",
+        "os": "Windows",
+        "ipAddress": "203.0.113.10",
+        "location": "Dhaka, BD",
+        "userAgent": "Mozilla/5.0 ...",
+        "issuedAt": "2026-05-09T10:00:00.000Z",
+        "lastActiveAt": "2026-05-09T10:15:00.000Z",
+        "expiresAt": "2026-05-16T10:00:00.000Z",
+        "isCurrent": true
+      }
+    ],
+    "meta": {
+      "page": 1,
+      "limit": 20,
+      "total": 1
+    }
+  }
+}
+```
+
+## Email Templates
+
+Auth emails are no longer built inline in service code. They are stored as file-based templates under:
+
+```text
+src/modules/auth/templates/
+  verification-email.subject.txt
+  verification-email.html
+  password-reset.subject.txt
+  password-reset.html
+  security-alert.subject.txt
+  security-alert.html
+```
+
+These templates are rendered by `AuthMailTemplateService` and queued through the mail job processor.
+
 ## Current Gaps
 
 This repo is stable as a boilerplate, but it is not yet a complete enterprise CRM. Important gaps still include:
 
-- no real auth module implementation
-- no RBAC guards wired to business routes
+- RBAC exists as a foundation, but business-role enforcement is still minimal
 - no domain modules such as users, leads, reports, notifications, or organizations
 - no real websocket gateway usage yet
-- no queue consumers beyond sample processor scaffolding
-- no concrete migrations or seeders beyond the scaffold
-- limited automated test coverage outside the platform baseline
+- queue usage is still light outside auth/mail and sample jobs
+- no concrete seeders for real business data
+- limited automated integration coverage across the new auth flows
 
 ## Recommended Next Steps
 
@@ -343,8 +521,9 @@ This repo is stable as a boilerplate, but it is not yet a complete enterprise CR
 - add DTO validation and contract tests for each API module
 - add integration tests against a disposable PostgreSQL and Redis stack
 - add CI to run build, lint, unit, and e2e checks automatically
-- add real queue jobs, websocket gateways, and mail templates
-- add auth, authorization, audit logging, and permission enforcement
+- expand auth e2e coverage with seeded test accounts
+- add real websocket gateways and richer business queue jobs
+- expand authorization and permission enforcement across future domain modules
 
 ## Boilerplate Verification Report
 
@@ -361,4 +540,5 @@ Notes:
 - App boot confirmed against the local `.env` values.
 - Health endpoint returned successful database and Redis connectivity.
 - The scaffolded infrastructure is wired and operational.
-- Business-domain completeness is still pending.
+- The auth/account module is now implemented and build-verified.
+- Business-domain completeness beyond auth is still pending.

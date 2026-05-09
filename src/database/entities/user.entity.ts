@@ -18,17 +18,29 @@ export class User extends TimestampedEntity {
   @Column({ name: 'password_hash', type: 'text', nullable: true })
   passwordHash!: string | null;
 
-  @Column({ name: 'mfa_secret', type: 'text', nullable: true })
-  mfaSecret!: string | null;
-
   @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
   lastLoginAt!: Date | null;
 
   @Column({ name: 'failed_login_count', type: 'int', default: 0 })
   failedLoginCount!: number;
 
+  @Column({ name: 'last_failed_login_at', type: 'timestamptz', nullable: true })
+  lastFailedLoginAt!: Date | null;
+
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
   lockedUntil!: Date | null;
+
+  @Column({ name: 'password_changed_at', type: 'timestamptz', nullable: true })
+  passwordChangedAt!: Date | null;
+
+  @Column({ name: 'email_verified_at', type: 'timestamptz', nullable: true })
+  emailVerifiedAt!: Date | null;
+
+  @Column({ name: 'verification_email_sent_at', type: 'timestamptz', nullable: true })
+  verificationEmailSentAt!: Date | null;
+
+  @Column({ name: 'avatar_key', type: 'varchar', length: 512, nullable: true })
+  avatarKey!: string | null;
 
   @Column({ name: 'is_active', default: true })
   isActive!: boolean;
