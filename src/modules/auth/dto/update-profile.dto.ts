@@ -44,4 +44,14 @@ export class UpdateProfileDto {
   @MinLength(8)
   @MaxLength(128)
   newPassword?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Avatar media key or URL returned by the media upload API. Send an empty string to remove the current avatar.',
+    example: '/storage/local/media/users/123/avatar.png',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1024)
+  avatar?: string;
 }

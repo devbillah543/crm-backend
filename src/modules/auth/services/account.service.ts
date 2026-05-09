@@ -7,8 +7,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { compare, hash } from 'bcryptjs';
-import { extname } from 'path';
-import { randomUUID } from 'crypto';
 import type { JwtUser } from '../../../common/types/jwt-user.type';
 import { QueueService } from '../../../core/queue/queue.service';
 import { StorageService } from '../../../core/storage/storage.service';
@@ -19,7 +17,6 @@ import { AuthMailTemplateService } from './auth-mail-template.service';
 import { AuthSessionService } from './auth-session.service';
 import { AuthTokenService } from './auth-token.service';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
-import type { UploadedAvatar } from '../types/uploaded-avatar.type';
 
 @Injectable()
 export class AccountService {
@@ -49,7 +46,6 @@ export class AccountService {
   async updateProfile(
     currentUser: JwtUser,
     dto: UpdateProfileDto,
-    avatar?: UploadedAvatar,
   ) {
     const user = await this.userRepository.findById(currentUser.userId);
     if (!user) {
@@ -118,18 +114,18 @@ export class AccountService {
       user.fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || null;
     }
 
-    if (avatar) {
-      this.validateAvatar(avatar);
-      const nextKey = `avatars/users/${user.id}/${randomUUID()}${extname(avatar.originalname || '.bin')}`;
-      await this.storageService.putBuffer(nextKey, avatar.buffer, {
-        contentType: avatar.mimetype,
-      });
-      if (user.avatarKey) {
-        await this.storageService.delete(user.avatarKey);
+    if (dto.avatar !== undefined) {
+      const nextAvatarKey = await this.resolveAvatarKey(user.id, dto.avatar);
+      const previousAvatarKey = user.avatarKey;
+
+      if (previousAvatarKey && previousAvatarKey !== nextAvatarKey) {
+        await this.storageService.delete(previousAvatarKey);
       }
-      user.avatarKey = nextKey;
+
+      user.avatarKey = nextAvatarKey;
       await this.authAuditService.log(currentUser.userId, 'UPDATE', 'avatar_changed', {
-        avatarKey: nextKey,
+        avatarKey: nextAvatarKey,
+        previousAvatarKey,
       });
     }
 
@@ -141,14 +137,48 @@ export class AccountService {
     return this.serializeUser(user, roles, permissions);
   }
 
-  private validateAvatar(file: UploadedAvatar): void {
-    const maxSize = this.configService.get<number>('auth.avatarMaxSizeBytes', 5_242_880);
-    if (file.size > maxSize) {
-      throw new BadRequestException(`Avatar exceeds ${maxSize} bytes`);
+  private async resolveAvatarKey(userId: string, avatar: string): Promise<string | null> {
+    const normalizedAvatar = avatar.trim();
+    if (!normalizedAvatar) {
+      return null;
     }
 
-    if (!file.mimetype.startsWith('image/')) {
-      throw new BadRequestException('Avatar must be an image');
+    const resolvedKey = this.normalizeStorageKey(normalizedAvatar);
+    if (!resolvedKey) {
+      throw new BadRequestException('Avatar reference is invalid');
+    }
+
+    const expectedPrefix = `media/users/${userId}/`;
+    if (!resolvedKey.startsWith(expectedPrefix)) {
+      throw new BadRequestException('Avatar must reference a file uploaded by the current user');
+    }
+
+    const exists = await this.storageService.exists(resolvedKey);
+    if (!exists) {
+      throw new BadRequestException('Avatar file was not found');
+    }
+
+    return resolvedKey;
+  }
+
+  private normalizeStorageKey(value: string): string | null {
+    const localBaseUrl = this.configService
+      .get<string>('storage.local.baseUrl', '/storage/local')
+      .replace(/\/+$/, '');
+
+    const candidate = this.extractPathname(value) ?? value;
+    if (candidate.startsWith(`${localBaseUrl}/`)) {
+      return candidate.slice(localBaseUrl.length + 1);
+    }
+
+    return candidate.replace(/^\/+/, '') || null;
+  }
+
+  private extractPathname(value: string): string | null {
+    try {
+      return new URL(value).pathname;
+    } catch {
+      return null;
     }
   }
 

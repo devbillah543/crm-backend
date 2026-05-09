@@ -33,6 +33,7 @@ const { StorageService } = require('../src/core/storage/storage.service');
 const { WebsocketService } = require('../src/core/websocket/websocket.service');
 const { AppLoggerService } = require('../src/core/logger/logger.service');
 const { AuthModule } = require('../src/modules/auth/auth.module');
+const { MediaModule } = require('../src/modules/media/media.module');
 const { ResponseTransformInterceptor } = require('../src/common/interceptors/response-transform.interceptor');
 const { GlobalExceptionFilter } = require('../src/common/filters/global-exception.filter');
 const { ensureDatabaseExists } = require('../src/core/database/ensure-database');
@@ -44,6 +45,7 @@ const { seedManagerUser } = require('../src/database/seeders/manager-user.seeder
 const { seedAgentUser } = require('../src/database/seeders/agent-user.seeder');
 
 const AUTH_BASE_PATH = '/api/v1/auth';
+const MEDIA_BASE_PATH = '/api/v1/media';
 const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 const SUPER_ADMIN_PASSWORD = 'SuperAdmin123!';
 const ADMIN_EMAIL = 'admin@example.com';
@@ -73,6 +75,8 @@ const queueServiceMock = {
   enqueueAnalytics: jest.fn(async () => undefined),
 };
 
+const TEST_STORAGE_BASE_URL = '/storage/test-local';
+
 const redisServiceMock = {
   get: jest.fn(async (key: string) => redisCache.get(key) ?? null),
   set: jest.fn(async (key: string, value: string) => {
@@ -98,7 +102,7 @@ const storageServiceMock = {
       key,
       size: body.length,
       contentType: options?.contentType,
-      url: `/storage/local/${key}`,
+      url: `${TEST_STORAGE_BASE_URL}/${key}`,
     };
   }),
   delete: jest.fn(async (key: string) => {
@@ -107,7 +111,7 @@ const storageServiceMock = {
   }),
   exists: jest.fn(async (key: string) => storageFiles.has(key)),
   read: jest.fn(async (key: string) => storageFiles.get(key) ?? Buffer.alloc(0)),
-  url: jest.fn((key: string) => `/storage/local/${key}`),
+  url: jest.fn((key: string) => `${TEST_STORAGE_BASE_URL}/${key}`),
 };
 
 const loggerMock = {
@@ -159,6 +163,7 @@ describe('AuthController (e2e)', () => {
         DatabaseModule,
         MockInfrastructureModule,
         AuthModule,
+        MediaModule,
       ],
     }).compile();
 
@@ -553,21 +558,37 @@ describe('AuthController (e2e)', () => {
     expect(conflict.body.message).toBe('Email is already in use');
   });
 
-  it('updates profile fields, changes password, uploads avatar, and queues verification mail', async () => {
+  it('uploads media and uses the returned avatar string in the profile api', async () => {
     const login = await loginAs(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD);
     const imageBuffer = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+
+    const upload = await api()
+      .post(`${MEDIA_BASE_PATH}/upload`)
+      .set('Authorization', `Bearer ${login.accessToken}`)
+      .field('folder', 'avatars')
+      .attach('file', imageBuffer, {
+        filename: 'avatar.png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+
+    expect(upload.body.data).toMatchObject({
+      key: expect.stringContaining('media/users/'),
+      url: expect.stringContaining('/storage/test-local/media/users/'),
+      size: imageBuffer.length,
+      contentType: 'image/png',
+    });
 
     const response = await api()
       .patch(`${AUTH_BASE_PATH}/profile`)
       .set('Authorization', `Bearer ${login.accessToken}`)
-      .field('firstName', 'Root')
-      .field('lastName', 'Owner')
-      .field('email', 'root.owner@example.com')
-      .field('currentPassword', SUPER_ADMIN_PASSWORD)
-      .field('newPassword', 'EvenStrongerPass!456')
-      .attach('avatar', imageBuffer, {
-        filename: 'avatar.png',
-        contentType: 'image/png',
+      .send({
+        firstName: 'Root',
+        lastName: 'Owner',
+        email: 'root.owner@example.com',
+        currentPassword: SUPER_ADMIN_PASSWORD,
+        newPassword: 'EvenStrongerPass!456',
+        avatar: upload.body.data.url,
       })
       .expect(200);
 
@@ -577,7 +598,7 @@ describe('AuthController (e2e)', () => {
       lastName: 'Owner',
       fullName: 'Root Owner',
       emailVerifiedAt: null,
-      avatarUrl: expect.stringContaining('/storage/local/avatars/users/'),
+      avatarUrl: upload.body.data.url,
     });
     expect(mailJobs).toHaveLength(1);
     expect(storageFiles.size).toBe(1);
@@ -599,19 +620,47 @@ describe('AuthController (e2e)', () => {
       .expect(201);
   });
 
-  it('rejects non-image avatar uploads', async () => {
+  it('rejects non-image media uploads', async () => {
     const login = await loginAs(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD);
 
     const response = await api()
-      .patch(`${AUTH_BASE_PATH}/profile`)
+      .post(`${MEDIA_BASE_PATH}/upload`)
       .set('Authorization', `Bearer ${login.accessToken}`)
-      .attach('avatar', Buffer.from('plain-text-file'), {
-        filename: 'avatar.txt',
+      .attach('file', Buffer.from('plain-text-file'), {
+        filename: 'notes.txt',
         contentType: 'text/plain',
       })
       .expect(400);
 
-    expect(response.body.message).toBe('Avatar must be an image');
+    expect(response.body.message).toBe('File must be an image');
+  });
+
+  it('rejects avatar strings that do not belong to the current user', async () => {
+    const owner = await loginAs(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD);
+    const otherUser = await loginAs(ADMIN_EMAIL, ADMIN_PASSWORD);
+    const imageBuffer = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+
+    const upload = await api()
+      .post(`${MEDIA_BASE_PATH}/upload`)
+      .set('Authorization', `Bearer ${otherUser.accessToken}`)
+      .field('folder', 'avatars')
+      .attach('file', imageBuffer, {
+        filename: 'avatar.png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+
+    const response = await api()
+      .patch(`${AUTH_BASE_PATH}/profile`)
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .send({
+        avatar: upload.body.data.url,
+      })
+      .expect(400);
+
+    expect(response.body.message).toBe(
+      'Avatar must reference a file uploaded by the current user',
+    );
   });
 
   async function prepareDatabase(): Promise<void> {

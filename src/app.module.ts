@@ -28,6 +28,7 @@ import { StorageModule } from './core/storage/storage.module';
 import { WebsocketModule } from './core/websocket/websocket.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
+import { MediaModule } from './modules/media/media.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { HealthModule } from './modules/health/health.module';
     WebsocketModule,
     AuthModule,
     HealthModule,
+    MediaModule,
   ],
   providers: [
     {

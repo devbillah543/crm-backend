@@ -10,14 +10,11 @@ import {
   Post,
   Query,
   Req,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
-  ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -25,7 +22,6 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtUser } from '../../common/types/jwt-user.type';
@@ -44,7 +40,6 @@ import { AccessTokenGuard } from './guards/access-token.guard';
 import { AuthService } from './services/auth.service';
 import { AccountService } from './services/account.service';
 import { AuthSessionService } from './services/auth-session.service';
-import type { UploadedAvatar } from './types/uploaded-avatar.type';
 
 @ApiTags('Authentication')
 @Controller({ path: 'auth', version: '1' })
@@ -289,10 +284,9 @@ export class AuthController {
   @UseGuards(AccessTokenGuard)
   @ApiBearerAuth()
   @Patch('profile')
-  @UseInterceptors(FileInterceptor('avatar'))
-  @ApiConsumes('multipart/form-data')
   @ApiBody({
-    description: 'Update one or more profile fields. Avatar is optional multipart file upload.',
+    description:
+      'Update one or more profile fields. Avatar should be the media key or URL returned by the media upload API.',
     schema: {
       type: 'object',
       properties: {
@@ -302,7 +296,10 @@ export class AuthController {
         email: { type: 'string', format: 'email', example: 'jane.doe@sidago.com' },
         currentPassword: { type: 'string', example: 'StrongPassword!123' },
         newPassword: { type: 'string', example: 'BrandNewPassword!123' },
-        avatar: { type: 'string', format: 'binary' },
+        avatar: {
+          type: 'string',
+          example: '/storage/local/media/users/7db8/avatar.png',
+        },
       },
     },
   })
@@ -318,8 +315,7 @@ export class AuthController {
   updateProfile(
     @CurrentUser() user: JwtUser,
     @Body() dto: UpdateProfileDto,
-    @UploadedFile() avatar?: UploadedAvatar,
   ) {
-    return this.accountService.updateProfile(user, dto, avatar);
+    return this.accountService.updateProfile(user, dto);
   }
 }
