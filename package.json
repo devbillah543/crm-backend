@@ -14,9 +14,10 @@
     "test:watch": "jest --watch",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "typeorm-ts-node-commonjs -d src/core/database/database.datasource.ts",
+    "typeorm:raw": "typeorm-ts-node-commonjs -d src/core/database/database.datasource.ts",
     "migration:generate": "npm run typeorm -- migration:generate src/database/migrations/AutoMigration",
     "migration:run": "ts-node -r tsconfig-paths/register src/scripts/run-migrations.ts",
-    "migration:revert": "npm run typeorm -- migration:revert",
+    "migration:revert": "ts-node -r tsconfig-paths/register src/scripts/revert-migration.ts",
     "seed:run": "ts-node -r tsconfig-paths/register src/database/seeders/run.ts",
     "prepare": "husky"
   },
