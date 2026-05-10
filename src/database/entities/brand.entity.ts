@@ -16,6 +16,9 @@ export class Brand extends TimestampedEntity {
   @Column({ name: 'display_name', type: 'varchar', length: 128 })
   displayName!: string;
 
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  icon!: string | null;
+
   @Column({ name: 'is_active', default: true })
   isActive!: boolean;
 

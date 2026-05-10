@@ -5,7 +5,7 @@ export class CreateBrandsTable1778314555250 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `CREATE TABLE "brands" ("id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "organization_id" uuid NOT NULL, "parent_brand_id" uuid, "code" character varying(32) NOT NULL, "display_name" character varying(128) NOT NULL, "is_active" boolean NOT NULL DEFAULT true, CONSTRAINT "UQ_1687d82f42d8b3f8162a29e7df4" UNIQUE ("code"), CONSTRAINT "PK_b0c437120b624da1034a81fc561" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "brands" ("id" uuid NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "organization_id" uuid NOT NULL, "parent_brand_id" uuid, "code" character varying(32) NOT NULL, "display_name" character varying(128) NOT NULL, "icon" character varying(512), "is_active" boolean NOT NULL DEFAULT true, CONSTRAINT "UQ_1687d82f42d8b3f8162a29e7df4" UNIQUE ("code"), CONSTRAINT "PK_b0c437120b624da1034a81fc561" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
       `CREATE INDEX "IDX_1f247307b5b1a85dd981ec8ffc" ON "brands" ("created_at") `,

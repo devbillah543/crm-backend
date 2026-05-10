@@ -42,6 +42,9 @@ export class Company extends TimestampedEntity {
   @Column({ type: 'varchar', length: 512, nullable: true })
   website!: string | null;
 
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  icon!: string | null;
+
   @Column({ type: 'varchar', length: 128, nullable: true })
   twitter!: string | null;
 

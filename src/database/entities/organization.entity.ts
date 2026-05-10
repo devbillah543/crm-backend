@@ -13,6 +13,9 @@ export class Organization extends TimestampedEntity {
   @Column({ type: 'text', nullable: true })
   description!: string | null;
 
+  @Column({ name: 'icon', type: 'varchar', length: 512, nullable: true })
+  icon!: string | null;
+
   @Column({ name: 'is_active', default: true })
   isActive!: boolean;
 
