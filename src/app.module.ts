@@ -27,8 +27,13 @@ import { SchedulerCoreModule } from './core/scheduler/scheduler.module';
 import { StorageModule } from './core/storage/storage.module';
 import { WebsocketModule } from './core/websocket/websocket.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BrandsModule } from './modules/brands/brands.module';
+import { CompaniesModule } from './modules/companies/companies.module';
 import { HealthModule } from './modules/health/health.module';
 import { MediaModule } from './modules/media/media.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { RolesModule } from './modules/roles/roles.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -72,6 +77,11 @@ import { MediaModule } from './modules/media/media.module';
     MailerModule,
     WebsocketModule,
     AuthModule,
+    RolesModule,
+    UsersModule,
+    OrganizationsModule,
+    CompaniesModule,
+    BrandsModule,
     HealthModule,
     MediaModule,
   ],

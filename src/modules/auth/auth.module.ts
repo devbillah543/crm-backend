@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -13,6 +12,7 @@ import { UserRoleAssignment } from '../../database/entities/user-role-assignment
 import { UserSession } from '../../database/entities/user-session.entity';
 import { User } from '../../database/entities/user.entity';
 import { AccessTokenGuard } from './guards/access-token.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -54,6 +54,8 @@ import { AuthSessionCleanupCron } from './cron/auth-session-cleanup.cron';
   providers: [
     JwtStrategy,
     AccessTokenGuard,
+    RolesGuard,
+    PermissionsGuard,
     AccountService,
     AuthAuditService,
     AuthMailTemplateService,
@@ -66,11 +68,7 @@ import { AuthSessionCleanupCron } from './cron/auth-session-cleanup.cron';
     UserSessionRepository,
     AuthActionTokenRepository,
     AuditLogRepository,
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
-    },
   ],
-  exports: [AccessTokenGuard, AuthSessionService],
+  exports: [AccessTokenGuard, AuthSessionService, RolesGuard, PermissionsGuard],
 })
 export class AuthModule {}

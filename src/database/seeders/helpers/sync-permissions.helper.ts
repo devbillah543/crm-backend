@@ -2,13 +2,15 @@ import { DataSource, In } from 'typeorm';
 import {
   PERMISSION_DEFINITIONS,
   ROLE_DEFINITIONS,
-} from '../../config/permission.config';
-import { Permission } from '../entities/permission.entity';
-import { Role } from '../entities/role.entity';
-import { RolePermission } from '../entities/role-permission.entity';
-import type { SeedExecutionResult } from './types/seeder.type';
+} from '../../../config/permission.config';
+import { Permission } from '../../entities/permission.entity';
+import { Role } from '../../entities/role.entity';
+import { RolePermission } from '../../entities/role-permission.entity';
+import type { SeedExecutionResult } from '../types/seeder.type';
 
-export async function seedPermissions(dataSource: DataSource): Promise<SeedExecutionResult> {
+export async function syncPermissionsForDatabase(
+  dataSource: DataSource,
+): Promise<SeedExecutionResult> {
   await dataSource.transaction(async (manager) => {
     const permissionRepository = manager.getRepository(Permission);
     const roleRepository = manager.getRepository(Role);

@@ -1,8 +1,8 @@
 import { Column, Entity } from 'typeorm';
-import { AuditedSoftDeleteEntity } from './base.entity';
+import { TimestampedEntity } from './base.entity';
 
 @Entity('notifications')
-export class Notification extends AuditedSoftDeleteEntity {
+export class Notification extends TimestampedEntity {
   @Column({ name: 'user_id', type: 'uuid' })
   userId!: string;
 

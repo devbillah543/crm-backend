@@ -27,12 +27,12 @@ export abstract class TimestampedEntity extends BaseUuidEntity {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;
-}
 
-export abstract class SoftDeletableEntity extends TimestampedEntity {
   @DeleteDateColumn({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   @Index()
   deletedAt!: Date | null;
 }
 
-export abstract class AuditedSoftDeleteEntity extends SoftDeletableEntity {}
+export abstract class SoftDeletableEntity extends TimestampedEntity {}
+
+export abstract class AuditedSoftDeleteEntity extends TimestampedEntity {}

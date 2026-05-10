@@ -4,9 +4,7 @@ import type { DataSource } from 'typeorm';
 import dataSource from '../../core/database/database.datasource';
 import { ensureDatabaseExists } from '../../core/database/ensure-database';
 import { seedAdminUser } from './admin-user.seeder';
-import { seedAgentUser } from './agent-user.seeder';
 import { seedManagerUser } from './manager-user.seeder';
-import { seedPermissions } from './permission.seeder';
 import { seedSuperAdminUser } from './super-admin-user.seeder';
 import type { SeederDefinition } from './types/seeder.type';
 
@@ -15,11 +13,9 @@ loadEnv();
 class DatabaseSeeder {
   private getSeederArray(): SeederDefinition[] {
     const seederArray: SeederDefinition[] = [
-      { name: 'permission', run: seedPermissions },
       { name: 'super-admin-user', run: seedSuperAdminUser },
       { name: 'admin-user', run: seedAdminUser },
       { name: 'manager-user', run: seedManagerUser },
-      { name: 'agent-user', run: seedAgentUser },
     ];
 
     return seederArray;

@@ -38,11 +38,11 @@ const { ResponseTransformInterceptor } = require('../src/common/interceptors/res
 const { GlobalExceptionFilter } = require('../src/common/filters/global-exception.filter');
 const { ensureDatabaseExists } = require('../src/core/database/ensure-database');
 const setupDataSource = require('../src/core/database/database.datasource').default;
-const { seedPermissions } = require('../src/database/seeders/permission.seeder');
 const { seedSuperAdminUser } = require('../src/database/seeders/super-admin-user.seeder');
 const { seedAdminUser } = require('../src/database/seeders/admin-user.seeder');
 const { seedManagerUser } = require('../src/database/seeders/manager-user.seeder');
-const { seedAgentUser } = require('../src/database/seeders/agent-user.seeder');
+const { syncPermissionsForDatabase } = require('../src/database/seeders/helpers/sync-permissions.helper');
+const { seedUserWithRole } = require('../src/database/seeders/helpers/seed-user-with-role');
 
 const AUTH_BASE_PATH = '/api/v1/auth';
 const MEDIA_BASE_PATH = '/api/v1/media';
@@ -50,6 +50,16 @@ const SUPER_ADMIN_EMAIL = 'superadmin@example.com';
 const SUPER_ADMIN_PASSWORD = 'SuperAdmin123!';
 const ADMIN_EMAIL = 'admin@example.com';
 const ADMIN_PASSWORD = 'Admin123!';
+const AGENT_SEED_CONFIG = {
+  roleCode: 'agent',
+  email: 'agent@example.com',
+  password: 'Agent123!',
+  firstName: 'Sales',
+  lastName: 'Agent',
+  fullName: 'Sales Agent',
+  markEmailVerified: true,
+  isActive: true,
+};
 
 type MailPayload = {
   to: string;
@@ -668,11 +678,11 @@ describe('AuthController (e2e)', () => {
     await resetPublicSchema();
     await setupDataSource.initialize();
     await setupDataSource.runMigrations();
-    await seedPermissions(setupDataSource);
+    await syncPermissionsForDatabase(setupDataSource);
     await seedSuperAdminUser(setupDataSource);
     await seedAdminUser(setupDataSource);
     await seedManagerUser(setupDataSource);
-    await seedAgentUser(setupDataSource);
+    await seedUserWithRole(setupDataSource, AGENT_SEED_CONFIG);
     await setupDataSource.destroy();
   }
 
@@ -683,7 +693,7 @@ describe('AuthController (e2e)', () => {
     await seedSuperAdminUser(dataSource);
     await seedAdminUser(dataSource);
     await seedManagerUser(dataSource);
-    await seedAgentUser(dataSource);
+    await seedUserWithRole(dataSource, AGENT_SEED_CONFIG);
   }
 
   async function resetPublicSchema(): Promise<void> {
