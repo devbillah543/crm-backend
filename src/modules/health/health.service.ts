@@ -33,14 +33,22 @@ export class HealthService {
       componentStatus.database = 'error';
     }
 
-    try {
-      const redisStatus = String(await this.redisService.getClient().ping());
-      componentStatus.redis = redisStatus === 'PONG' ? 'ok' : redisStatus.toLowerCase();
-    } catch {
-      componentStatus.redis = 'error';
+    if (this.redisService.isUsingFallback()) {
+      componentStatus.redis = 'fallback';
+    } else {
+      try {
+        const redisStatus = await this.redisService.ping();
+        componentStatus.redis =
+          redisStatus === 'PONG' ? 'ok' : redisStatus.toLowerCase();
+      } catch {
+        componentStatus.redis = 'error';
+      }
     }
 
-    if (componentStatus.database !== 'ok' || componentStatus.redis !== 'ok') {
+    if (
+      componentStatus.database !== 'ok' ||
+      (componentStatus.redis !== 'ok' && componentStatus.redis !== 'fallback')
+    ) {
       throw new ServiceUnavailableException({
         success: false,
         message: 'Server dependencies are unavailable',

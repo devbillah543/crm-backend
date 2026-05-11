@@ -18,9 +18,8 @@ describe('HealthService', () => {
       check: jest.fn().mockResolvedValue(true),
     };
     const redisService = {
-      getClient: jest.fn().mockReturnValue({
-        ping: jest.fn().mockResolvedValue('PONG'),
-      }),
+      isUsingFallback: jest.fn().mockReturnValue(false),
+      ping: jest.fn().mockResolvedValue('PONG'),
     };
 
     const service = new HealthService(
@@ -44,9 +43,8 @@ describe('HealthService', () => {
       check: jest.fn().mockResolvedValue(true),
     };
     const redisService = {
-      getClient: jest.fn().mockReturnValue({
-        ping: jest.fn().mockRejectedValue(new Error('redis down')),
-      }),
+      isUsingFallback: jest.fn().mockReturnValue(false),
+      ping: jest.fn().mockRejectedValue(new Error('redis down')),
     };
 
     const service = new HealthService(
@@ -64,6 +62,31 @@ describe('HealthService', () => {
           database: 'ok',
           redis: 'error',
         },
+      },
+    });
+  });
+
+  it('returns readiness payload when redis fallback mode is active', async () => {
+    const databaseHealthService = {
+      check: jest.fn().mockResolvedValue(true),
+    };
+    const redisService = {
+      isUsingFallback: jest.fn().mockReturnValue(true),
+      ping: jest.fn(),
+    };
+
+    const service = new HealthService(
+      databaseHealthService as never,
+      redisService as never,
+    );
+
+    await expect(service.checkReadiness()).resolves.toEqual({
+      success: true,
+      message: 'Server is ready',
+      data: {
+        app: 'ok',
+        database: 'ok',
+        redis: 'fallback',
       },
     });
   });

@@ -1,7 +1,9 @@
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
-  NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
+  NODE_ENV: Joi.string()
+    .valid('development', 'test', 'production')
+    .default('development'),
   PORT: Joi.number().default(4000),
   APP_NAME: Joi.string().default('Sidago CRM Backend'),
   APP_VERSION: Joi.string().default('1.0.0'),
@@ -11,7 +13,9 @@ export const envValidationSchema = Joi.object({
   COOKIE_DOMAIN: Joi.string().default('localhost'),
   SWAGGER_ENABLED: Joi.boolean().default(true),
   SWAGGER_PATH: Joi.string().default('docs'),
-  FRONTEND_URL: Joi.string().uri({ allowRelative: false }).default('http://localhost:3000'),
+  FRONTEND_URL: Joi.string()
+    .uri({ allowRelative: false })
+    .default('http://localhost:3000'),
   DATABASE_URL: Joi.string().required(),
   DATABASE_ADMIN_URL: Joi.string().allow('', null),
   DATABASE_SSL: Joi.boolean().default(false),
@@ -20,7 +24,7 @@ export const envValidationSchema = Joi.object({
   DATABASE_POOL_MAX: Joi.number().integer().min(1).default(20),
   DATABASE_CONNECT_TIMEOUT_MS: Joi.number().integer().min(1000).default(10000),
   DATABASE_IDLE_TIMEOUT_MS: Joi.number().integer().min(1000).default(30000),
-  REDIS_URL: Joi.string().required(),
+  REDIS_URL: Joi.string().allow('', null).default(''),
   REDIS_KEY_PREFIX: Joi.string().default('sidago:'),
   REDIS_CONNECT_TIMEOUT_MS: Joi.number().integer().min(1000).default(10000),
   REDIS_MAX_RETRIES_PER_REQUEST: Joi.number().integer().min(1).default(3),
@@ -32,10 +36,19 @@ export const envValidationSchema = Joi.object({
   AUTH_MAX_FAILED_LOGINS: Joi.number().integer().min(1).default(5),
   AUTH_LOCK_MINUTES: Joi.number().integer().min(1).default(15),
   AUTH_VERIFICATION_EXPIRES_HOURS: Joi.number().integer().min(1).default(24),
-  AUTH_RESET_PASSWORD_EXPIRES_MINUTES: Joi.number().integer().min(1).default(30),
-  AUTH_SECURITY_ALERT_COOLDOWN_MINUTES: Joi.number().integer().min(1).default(15),
+  AUTH_RESET_PASSWORD_EXPIRES_MINUTES: Joi.number()
+    .integer()
+    .min(1)
+    .default(30),
+  AUTH_SECURITY_ALERT_COOLDOWN_MINUTES: Joi.number()
+    .integer()
+    .min(1)
+    .default(15),
   AUTH_AVATAR_MAX_SIZE_BYTES: Joi.number().integer().min(1024).default(5242880),
-  AUTH_SESSION_TOUCH_THROTTLE_SECONDS: Joi.number().integer().min(1).default(60),
+  AUTH_SESSION_TOUCH_THROTTLE_SECONDS: Joi.number()
+    .integer()
+    .min(1)
+    .default(60),
   MAIL_HOST: Joi.string().allow('', null),
   MAIL_PORT: Joi.number().port().default(587),
   MAIL_SECURE: Joi.boolean().default(false),
