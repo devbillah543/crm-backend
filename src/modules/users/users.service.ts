@@ -59,15 +59,23 @@ export class UsersService {
       builder.andWhere(
         new Brackets((qb: WhereExpressionBuilder) => {
           qb.where('LOWER(user.email) LIKE :search', { search })
-            .orWhere('LOWER(COALESCE(user.first_name, \'\')) LIKE :search', { search })
-            .orWhere('LOWER(COALESCE(user.last_name, \'\')) LIKE :search', { search })
-            .orWhere('LOWER(COALESCE(user.full_name, \'\')) LIKE :search', { search });
+            .orWhere("LOWER(COALESCE(user.first_name, '')) LIKE :search", {
+              search,
+            })
+            .orWhere("LOWER(COALESCE(user.last_name, '')) LIKE :search", {
+              search,
+            })
+            .orWhere("LOWER(COALESCE(user.full_name, '')) LIKE :search", {
+              search,
+            });
         }),
       );
     }
 
     if (query.isActive !== undefined) {
-      builder.andWhere('user.is_active = :isActive', { isActive: query.isActive });
+      builder.andWhere('user.is_active = :isActive', {
+        isActive: query.isActive,
+      });
     }
 
     if (query.roleCode?.trim()) {
@@ -111,7 +119,7 @@ export class UsersService {
   async create(dto: CreateUserDto, currentUser: JwtUser) {
     const normalizedEmail = dto.email.trim().toLowerCase();
     await this.ensureEmailIsUnique(normalizedEmail);
-    const roles = await this.resolveRoles(dto.roleCodes);
+    const roles = await this.resolveRoles(dto.roleIds);
     await this.ensureBrandsExist(dto.brandIds);
 
     const passwordHash = await hash(
@@ -161,7 +169,8 @@ export class UsersService {
     if (dto.fullName !== undefined) {
       user.fullName = normalizeOptionalString(dto.fullName) ?? null;
     } else if (dto.firstName !== undefined || dto.lastName !== undefined) {
-      user.fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || null;
+      user.fullName =
+        [user.firstName, user.lastName].filter(Boolean).join(' ') || null;
     }
 
     if (dto.isActive !== undefined) {
@@ -180,8 +189,8 @@ export class UsersService {
       await this.revokeAllUserSessions(user.id, 'password_changed_by_admin');
     }
 
-    if (dto.roleCodes !== undefined) {
-      const roles = await this.resolveRoles(dto.roleCodes);
+    if (dto.roleIds !== undefined) {
+      const roles = await this.resolveRoles(dto.roleIds);
       await this.syncUserRoles(user.id, roles, currentUser.userId);
     }
 
@@ -222,20 +231,24 @@ export class UsersService {
     }
   }
 
-  private async resolveRoles(roleCodes?: string[]) {
-    const normalizedCodes = [...new Set((roleCodes ?? []).map((code) => code.trim().toLowerCase()).filter(Boolean))];
-    if (!normalizedCodes.length) {
+  private async resolveRoles(roleIds?: string[]) {
+    const normalizedIds = [
+      ...new Set((roleIds ?? []).map((id) => id.trim()).filter(Boolean)),
+    ];
+    if (!normalizedIds.length) {
       return [];
     }
 
     const roles = await this.roleRepository.find({
-      where: { code: In(normalizedCodes) },
+      where: { id: In(normalizedIds) },
     });
 
-    if (roles.length !== normalizedCodes.length) {
-      const foundCodes = new Set(roles.map((role) => role.code));
-      const missingCodes = normalizedCodes.filter((code) => !foundCodes.has(code));
-      throw new BadRequestException(`Unknown role codes: ${missingCodes.join(', ')}`);
+    if (roles.length !== normalizedIds.length) {
+      const foundIds = new Set(roles.map((role) => role.id));
+      const missingIds = normalizedIds.filter((id) => !foundIds.has(id));
+      throw new BadRequestException(
+        `Unknown role ids: ${missingIds.join(', ')}`,
+      );
     }
 
     return roles;
@@ -254,12 +267,20 @@ export class UsersService {
 
     if (brands.length !== normalizedIds.length) {
       const foundIds = new Set(brands.map((brand) => brand.id));
-      const missingIds = normalizedIds.filter((brandId) => !foundIds.has(brandId));
-      throw new BadRequestException(`Unknown brand ids: ${missingIds.join(', ')}`);
+      const missingIds = normalizedIds.filter(
+        (brandId) => !foundIds.has(brandId),
+      );
+      throw new BadRequestException(
+        `Unknown brand ids: ${missingIds.join(', ')}`,
+      );
     }
   }
 
-  private async syncUserRoles(userId: string, roles: Role[], assignedByUserId: string) {
+  private async syncUserRoles(
+    userId: string,
+    roles: Role[],
+    assignedByUserId: string,
+  ) {
     await this.userRoleAssignmentRepository.delete({ userId });
 
     if (!roles.length) {
@@ -325,7 +346,9 @@ export class UsersService {
       where: { userId: In(userIds) },
     });
 
-    const roleIds = [...new Set(roleAssignments.map((assignment) => assignment.roleId))];
+    const roleIds = [
+      ...new Set(roleAssignments.map((assignment) => assignment.roleId)),
+    ];
     const roles = roleIds.length
       ? await this.roleRepository.find({
           where: { id: In(roleIds) },
@@ -338,13 +361,17 @@ export class UsersService {
           where: { roleId: In(roleIds) },
         })
       : [];
-    const permissionIds = [...new Set(rolePermissions.map((item) => item.permissionId))];
+    const permissionIds = [
+      ...new Set(rolePermissions.map((item) => item.permissionId)),
+    ];
     const permissions = permissionIds.length
       ? await this.permissionRepository.find({
           where: { id: In(permissionIds) },
         })
       : [];
-    const permissionMap = new Map(permissions.map((permission) => [permission.id, permission.code]));
+    const permissionMap = new Map(
+      permissions.map((permission) => [permission.id, permission.code]),
+    );
 
     const roleCodesByUserId = new Map<string, string[]>();
     const permissionCodesByUserId = new Map<string, string[]>();
@@ -362,11 +389,14 @@ export class UsersService {
 
     for (const assignment of roleAssignments) {
       const roleCodes = roleCodesByUserId.get(assignment.userId) ?? [];
-      const permissionCodes = permissionCodesByUserId.get(assignment.userId) ?? [];
+      const permissionCodes =
+        permissionCodesByUserId.get(assignment.userId) ?? [];
       const role = roleMap.get(assignment.roleId);
       if (role) {
         roleCodes.push(role.code);
-        permissionCodes.push(...(rolePermissionsByRoleId.get(assignment.roleId) ?? []));
+        permissionCodes.push(
+          ...(rolePermissionsByRoleId.get(assignment.roleId) ?? []),
+        );
       }
       roleCodesByUserId.set(assignment.userId, roleCodes);
       permissionCodesByUserId.set(assignment.userId, permissionCodes);
@@ -384,12 +414,18 @@ export class UsersService {
       firstName: user.firstName,
       lastName: user.lastName,
       fullName: user.fullName,
-      avatarUrl: user.avatarKey ? this.storageService.url(user.avatarKey) : null,
+      avatarUrl: user.avatarKey
+        ? this.storageService.url(user.avatarKey)
+        : null,
       lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null,
-      emailVerifiedAt: user.emailVerifiedAt ? user.emailVerifiedAt.toISOString() : null,
+      emailVerifiedAt: user.emailVerifiedAt
+        ? user.emailVerifiedAt.toISOString()
+        : null,
       isActive: user.isActive,
       roles: [...new Set(roleCodesByUserId.get(user.id) ?? [])],
-      permissions: [...new Set(permissionCodesByUserId.get(user.id) ?? [])].sort(),
+      permissions: [
+        ...new Set(permissionCodesByUserId.get(user.id) ?? []),
+      ].sort(),
       brandIds: [...new Set(brandIdsByUserId.get(user.id) ?? [])],
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
@@ -406,13 +442,19 @@ function normalizeOptionalString(value: string | undefined) {
   return normalized ? normalized : null;
 }
 
-function resolveFullName(firstName?: string, lastName?: string, fullName?: string) {
+function resolveFullName(
+  firstName?: string,
+  lastName?: string,
+  fullName?: string,
+) {
   const explicit = normalizeOptionalString(fullName);
   if (explicit !== undefined) {
     return explicit;
   }
 
-  return [normalizeOptionalString(firstName), normalizeOptionalString(lastName)]
-    .filter(Boolean)
-    .join(' ') || null;
+  return (
+    [normalizeOptionalString(firstName), normalizeOptionalString(lastName)]
+      .filter(Boolean)
+      .join(' ') || null
+  );
 }
