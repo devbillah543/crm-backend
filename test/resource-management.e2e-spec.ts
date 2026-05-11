@@ -2,6 +2,8 @@ process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL =
   process.env.DATABASE_URL ??
   'postgres://root:secure_password@localhost:5432/sidago_test';
+process.env.STORAGE_LOCAL_BASE_URL =
+  process.env.STORAGE_LOCAL_BASE_URL ?? '/storage/local';
 
 import type { INestApplication } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
@@ -97,6 +99,9 @@ const AGENT_SEED_CONFIG = {
   isActive: true,
 };
 
+const TEST_STORAGE_BASE_URL =
+  process.env.STORAGE_LOCAL_BASE_URL ?? '/storage/local';
+
 type LoginResult = {
   accessToken: string;
   refreshToken: string;
@@ -117,6 +122,7 @@ const redisServiceMock = {
   get: jest.fn(async () => null),
   set: jest.fn(async () => undefined),
   del: jest.fn(async () => undefined),
+  incr: jest.fn(async () => 1),
   getClient: jest.fn(),
   onModuleDestroy: jest.fn(async () => undefined),
 };
@@ -132,7 +138,7 @@ const storageServiceMock = {
   delete: jest.fn(),
   exists: jest.fn(async () => false),
   read: jest.fn(async () => Buffer.alloc(0)),
-  url: jest.fn((key: string) => `/storage/test-local/${key}`),
+  url: jest.fn((key: string) => `${TEST_STORAGE_BASE_URL}/${key}`),
 };
 
 const loggerMock = {

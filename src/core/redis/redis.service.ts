@@ -7,11 +7,20 @@ export class RedisService implements OnModuleDestroy {
   private readonly client: Redis;
 
   constructor(private readonly configService: ConfigService) {
-    this.client = new Redis(this.configService.getOrThrow<string>('redis.url'), {
-      keyPrefix: this.configService.get<string>('redis.keyPrefix', 'sidago:'),
-      connectTimeout: this.configService.get<number>('redis.connectTimeoutMs', 10000),
-      maxRetriesPerRequest: this.configService.get<number>('redis.maxRetriesPerRequest', 3),
-    });
+    this.client = new Redis(
+      this.configService.getOrThrow<string>('redis.url'),
+      {
+        keyPrefix: this.configService.get<string>('redis.keyPrefix', 'sidago:'),
+        connectTimeout: this.configService.get<number>(
+          'redis.connectTimeoutMs',
+          10000,
+        ),
+        maxRetriesPerRequest: this.configService.get<number>(
+          'redis.maxRetriesPerRequest',
+          3,
+        ),
+      },
+    );
   }
 
   getClient(): Redis {
@@ -33,6 +42,10 @@ export class RedisService implements OnModuleDestroy {
 
   async del(key: string): Promise<void> {
     await this.client.del(key);
+  }
+
+  async incr(key: string): Promise<number> {
+    return this.client.incr(key);
   }
 
   async onModuleDestroy(): Promise<void> {

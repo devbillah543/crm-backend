@@ -1,7 +1,11 @@
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgres://root:secure_password@localhost:5432/sidago_test';
-process.env.STORAGE_LOCAL_ROOT = process.env.STORAGE_LOCAL_ROOT ?? 'storage/test-local';
+  process.env.DATABASE_URL ??
+  'postgres://root:secure_password@localhost:5432/sidago_test';
+process.env.STORAGE_LOCAL_ROOT =
+  process.env.STORAGE_LOCAL_ROOT ?? 'storage/test-local';
+process.env.STORAGE_LOCAL_BASE_URL =
+  process.env.STORAGE_LOCAL_BASE_URL ?? '/storage/local';
 
 import type { INestApplication } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
@@ -10,7 +14,12 @@ require('reflect-metadata');
 
 const request = require('supertest');
 const { Client } = require('pg');
-const { Global, Module, ValidationPipe, VersioningType } = require('@nestjs/common');
+const {
+  Global,
+  Module,
+  ValidationPipe,
+  VersioningType,
+} = require('@nestjs/common');
 const { Test } = require('@nestjs/testing');
 const { ConfigModule } = require('@nestjs/config');
 const { DataSource: TypeOrmDataSource } = require('typeorm');
@@ -34,15 +43,30 @@ const { WebsocketService } = require('../src/core/websocket/websocket.service');
 const { AppLoggerService } = require('../src/core/logger/logger.service');
 const { AuthModule } = require('../src/modules/auth/auth.module');
 const { MediaModule } = require('../src/modules/media/media.module');
-const { ResponseTransformInterceptor } = require('../src/common/interceptors/response-transform.interceptor');
-const { GlobalExceptionFilter } = require('../src/common/filters/global-exception.filter');
-const { ensureDatabaseExists } = require('../src/core/database/ensure-database');
-const setupDataSource = require('../src/core/database/database.datasource').default;
-const { seedSuperAdminUser } = require('../src/database/seeders/super-admin-user.seeder');
+const {
+  ResponseTransformInterceptor,
+} = require('../src/common/interceptors/response-transform.interceptor');
+const {
+  GlobalExceptionFilter,
+} = require('../src/common/filters/global-exception.filter');
+const {
+  ensureDatabaseExists,
+} = require('../src/core/database/ensure-database');
+const setupDataSource =
+  require('../src/core/database/database.datasource').default;
+const {
+  seedSuperAdminUser,
+} = require('../src/database/seeders/super-admin-user.seeder');
 const { seedAdminUser } = require('../src/database/seeders/admin-user.seeder');
-const { seedManagerUser } = require('../src/database/seeders/manager-user.seeder');
-const { syncPermissionsForDatabase } = require('../src/database/seeders/helpers/sync-permissions.helper');
-const { seedUserWithRole } = require('../src/database/seeders/helpers/seed-user-with-role');
+const {
+  seedManagerUser,
+} = require('../src/database/seeders/manager-user.seeder');
+const {
+  syncPermissionsForDatabase,
+} = require('../src/database/seeders/helpers/sync-permissions.helper');
+const {
+  seedUserWithRole,
+} = require('../src/database/seeders/helpers/seed-user-with-role');
 
 const AUTH_BASE_PATH = '/api/v1/auth';
 const MEDIA_BASE_PATH = '/api/v1/media';
@@ -85,7 +109,8 @@ const queueServiceMock = {
   enqueueAnalytics: jest.fn(async () => undefined),
 };
 
-const TEST_STORAGE_BASE_URL = '/storage/test-local';
+const TEST_STORAGE_BASE_URL =
+  process.env.STORAGE_LOCAL_BASE_URL ?? '/storage/local';
 
 const redisServiceMock = {
   get: jest.fn(async (key: string) => redisCache.get(key) ?? null),
@@ -106,21 +131,25 @@ const websocketServiceMock = {
 
 const storageServiceMock = {
   activeDriver: 'local',
-  putBuffer: jest.fn(async (key: string, body: Buffer, options?: { contentType?: string }) => {
-    storageFiles.set(key, body);
-    return {
-      key,
-      size: body.length,
-      contentType: options?.contentType,
-      url: `${TEST_STORAGE_BASE_URL}/${key}`,
-    };
-  }),
+  putBuffer: jest.fn(
+    async (key: string, body: Buffer, options?: { contentType?: string }) => {
+      storageFiles.set(key, body);
+      return {
+        key,
+        size: body.length,
+        contentType: options?.contentType,
+        url: `${TEST_STORAGE_BASE_URL}/${key}`,
+      };
+    },
+  ),
   delete: jest.fn(async (key: string) => {
     storageFiles.delete(key);
     deletedStorageKeys.push(key);
   }),
   exists: jest.fn(async (key: string) => storageFiles.has(key)),
-  read: jest.fn(async (key: string) => storageFiles.get(key) ?? Buffer.alloc(0)),
+  read: jest.fn(
+    async (key: string) => storageFiles.get(key) ?? Buffer.alloc(0),
+  ),
   url: jest.fn((key: string) => `${TEST_STORAGE_BASE_URL}/${key}`),
 };
 
@@ -140,7 +169,13 @@ const loggerMock = {
     { provide: WebsocketService, useValue: websocketServiceMock },
     { provide: AppLoggerService, useValue: loggerMock },
   ],
-  exports: [QueueService, RedisService, StorageService, WebsocketService, AppLoggerService],
+  exports: [
+    QueueService,
+    RedisService,
+    StorageService,
+    WebsocketService,
+    AppLoggerService,
+  ],
 })
 class MockInfrastructureModule {}
 
@@ -257,7 +292,9 @@ describe('AuthController (e2e)', () => {
       .expect(400);
 
     expect(response.body.success).toBe(false);
-    expect(response.body.message).toContain('property deviceName should not exist');
+    expect(response.body.message).toContain(
+      'property deviceName should not exist',
+    );
   });
 
   it('returns the same invalid credentials response for missing users and wrong passwords', async () => {
@@ -584,7 +621,7 @@ describe('AuthController (e2e)', () => {
 
     expect(upload.body.data).toMatchObject({
       key: expect.stringContaining('media/users/'),
-      url: expect.stringContaining('/storage/test-local/media/users/'),
+      url: expect.stringContaining(`${TEST_STORAGE_BASE_URL}/media/users/`),
       size: imageBuffer.length,
       contentType: 'image/png',
     });
