@@ -1,9 +1,10 @@
-import type { INestApplication } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
+import type { Request, Response } from 'express';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 export function setupSwagger(
-  app: INestApplication,
+  app: NestExpressApplication,
   configService: ConfigService,
 ): void {
   if (!configService.get<boolean>('SWAGGER_ENABLED', true)) {
@@ -20,11 +21,18 @@ export function setupSwagger(
   const document = SwaggerModule.createDocument(app, config);
   const swaggerPath = configService.get<string>('SWAGGER_PATH', '/');
   const normalizedPath =
-    swaggerPath === '/' || swaggerPath.trim() === '' ? '' : swaggerPath.replace(/^\/+/, '');
+    swaggerPath === '/' || swaggerPath.trim() === ''
+      ? ''
+      : swaggerPath.replace(/^\/+/, '');
 
-  SwaggerModule.setup(
-    normalizedPath,
-    app,
-    document,
-  );
+  SwaggerModule.setup(normalizedPath, app, document);
+
+  if (normalizedPath) {
+    app
+      .getHttpAdapter()
+      .getInstance()
+      .get('/', (_request: Request, response: Response) => {
+        response.redirect(`/${normalizedPath}`);
+      });
+  }
 }
