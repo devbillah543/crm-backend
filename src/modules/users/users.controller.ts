@@ -81,8 +81,12 @@ export class UsersController {
       },
     },
   })
-  @ApiUnauthorizedResponse({ schema: { example: { success: false, message: 'Unauthorized' } } })
-  @ApiForbiddenResponse({ schema: { example: { success: false, message: 'Forbidden resource' } } })
+  @ApiUnauthorizedResponse({
+    schema: { example: { success: false, message: 'Unauthorized' } },
+  })
+  @ApiForbiddenResponse({
+    schema: { example: { success: false, message: 'Forbidden resource' } },
+  })
   findAll(@Query() query: ListUsersQueryDto) {
     return this.usersService.findAll(query);
   }
@@ -100,7 +104,9 @@ export class UsersController {
     description: 'User returned successfully.',
     type: UserResponseDto,
   })
-  @ApiNotFoundResponse({ schema: { example: { success: false, message: 'User not found' } } })
+  @ApiNotFoundResponse({
+    schema: { example: { success: false, message: 'User not found' } },
+  })
   findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.usersService.findOne(id);
   }
@@ -111,13 +117,16 @@ export class UsersController {
   @Post()
   @ApiOperation({
     summary: 'Create user',
-    description: 'Creates a new user with optional roles and brand assignments.',
+    description:
+      'Creates a new user with optional role ids and brand assignments.',
   })
   @ApiCreatedResponse({
     description: 'User created successfully.',
     type: UserResponseDto,
   })
-  @ApiConflictResponse({ schema: { example: { success: false, message: 'Email is already in use' } } })
+  @ApiConflictResponse({
+    schema: { example: { success: false, message: 'Email is already in use' } },
+  })
   create(@Body() dto: CreateUserDto, @CurrentUser() user: JwtUser) {
     return this.usersService.create(dto, user);
   }
@@ -128,14 +137,17 @@ export class UsersController {
   @Patch(':id')
   @ApiOperation({
     summary: 'Update user',
-    description: 'Updates profile fields, roles, brands, active state, or password.',
+    description:
+      'Updates profile fields, role ids, brands, active state, or password.',
   })
   @ApiParam({ name: 'id', description: 'User identifier.' })
   @ApiOkResponse({
     description: 'User updated successfully.',
     type: UserResponseDto,
   })
-  @ApiConflictResponse({ schema: { example: { success: false, message: 'Email is already in use' } } })
+  @ApiConflictResponse({
+    schema: { example: { success: false, message: 'Email is already in use' } },
+  })
   update(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateUserDto,
@@ -151,14 +163,20 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Delete user',
-    description: 'Deletes a user and removes related sessions, role assignments, brand mappings, and action tokens.',
+    description:
+      'Deletes a user and removes related sessions, role assignments, brand mappings, and action tokens.',
   })
   @ApiParam({ name: 'id', description: 'User identifier.' })
   @ApiOkResponse({
     description: 'User deleted successfully.',
-    schema: { example: { success: true, message: 'User deleted successfully' } },
+    schema: {
+      example: { success: true, message: 'User deleted successfully' },
+    },
   })
-  async remove(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtUser) {
+  async remove(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: JwtUser,
+  ) {
     await this.usersService.remove(id, user);
     return { success: true, message: 'User deleted successfully' };
   }

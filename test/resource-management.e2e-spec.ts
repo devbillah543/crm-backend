@@ -1,6 +1,9 @@
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgres://root:secure_password@localhost:5432/sidago_test';
+  process.env.DATABASE_URL ??
+  'postgres://root:secure_password@localhost:5432/sidago_test';
+process.env.STORAGE_LOCAL_BASE_URL =
+  process.env.STORAGE_LOCAL_BASE_URL ?? '/storage/local';
 
 import type { INestApplication } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
@@ -9,7 +12,12 @@ require('reflect-metadata');
 
 const request = require('supertest');
 const { Client } = require('pg');
-const { Global, Module, ValidationPipe, VersioningType } = require('@nestjs/common');
+const {
+  Global,
+  Module,
+  ValidationPipe,
+  VersioningType,
+} = require('@nestjs/common');
 const { Test } = require('@nestjs/testing');
 const { ConfigModule } = require('@nestjs/config');
 const { DataSource: TypeOrmDataSource } = require('typeorm');
@@ -31,21 +39,40 @@ const { RedisService } = require('../src/core/redis/redis.service');
 const { StorageService } = require('../src/core/storage/storage.service');
 const { WebsocketService } = require('../src/core/websocket/websocket.service');
 const { AppLoggerService } = require('../src/core/logger/logger.service');
-const { ResponseTransformInterceptor } = require('../src/common/interceptors/response-transform.interceptor');
-const { GlobalExceptionFilter } = require('../src/common/filters/global-exception.filter');
-const { ensureDatabaseExists } = require('../src/core/database/ensure-database');
-const setupDataSource = require('../src/core/database/database.datasource').default;
+const {
+  ResponseTransformInterceptor,
+} = require('../src/common/interceptors/response-transform.interceptor');
+const {
+  GlobalExceptionFilter,
+} = require('../src/common/filters/global-exception.filter');
+const {
+  ensureDatabaseExists,
+} = require('../src/core/database/ensure-database');
+const setupDataSource =
+  require('../src/core/database/database.datasource').default;
 const { AuthModule } = require('../src/modules/auth/auth.module');
 const { RolesModule } = require('../src/modules/roles/roles.module');
-const { OrganizationsModule } = require('../src/modules/organizations/organizations.module');
-const { CompaniesModule } = require('../src/modules/companies/companies.module');
+const {
+  OrganizationsModule,
+} = require('../src/modules/organizations/organizations.module');
+const {
+  CompaniesModule,
+} = require('../src/modules/companies/companies.module');
 const { BrandsModule } = require('../src/modules/brands/brands.module');
 const { UsersModule } = require('../src/modules/users/users.module');
-const { seedSuperAdminUser } = require('../src/database/seeders/super-admin-user.seeder');
+const {
+  seedSuperAdminUser,
+} = require('../src/database/seeders/super-admin-user.seeder');
 const { seedAdminUser } = require('../src/database/seeders/admin-user.seeder');
-const { seedManagerUser } = require('../src/database/seeders/manager-user.seeder');
-const { syncPermissionsForDatabase } = require('../src/database/seeders/helpers/sync-permissions.helper');
-const { seedUserWithRole } = require('../src/database/seeders/helpers/seed-user-with-role');
+const {
+  seedManagerUser,
+} = require('../src/database/seeders/manager-user.seeder');
+const {
+  syncPermissionsForDatabase,
+} = require('../src/database/seeders/helpers/sync-permissions.helper');
+const {
+  seedUserWithRole,
+} = require('../src/database/seeders/helpers/seed-user-with-role');
 
 const AUTH_BASE_PATH = '/api/v1/auth';
 const ROLES_BASE_PATH = '/api/v1/roles';
@@ -72,9 +99,17 @@ const AGENT_SEED_CONFIG = {
   isActive: true,
 };
 
+const TEST_STORAGE_BASE_URL =
+  process.env.STORAGE_LOCAL_BASE_URL ?? '/storage/local';
+
 type LoginResult = {
   accessToken: string;
   refreshToken: string;
+};
+
+type RoleSummary = {
+  id: string;
+  code: string;
 };
 
 const queueServiceMock = {
@@ -87,6 +122,7 @@ const redisServiceMock = {
   get: jest.fn(async () => null),
   set: jest.fn(async () => undefined),
   del: jest.fn(async () => undefined),
+  incr: jest.fn(async () => 1),
   getClient: jest.fn(),
   onModuleDestroy: jest.fn(async () => undefined),
 };
@@ -102,7 +138,7 @@ const storageServiceMock = {
   delete: jest.fn(),
   exists: jest.fn(async () => false),
   read: jest.fn(async () => Buffer.alloc(0)),
-  url: jest.fn((key: string) => `/storage/test-local/${key}`),
+  url: jest.fn((key: string) => `${TEST_STORAGE_BASE_URL}/${key}`),
 };
 
 const loggerMock = {
@@ -121,7 +157,13 @@ const loggerMock = {
     { provide: WebsocketService, useValue: websocketServiceMock },
     { provide: AppLoggerService, useValue: loggerMock },
   ],
-  exports: [QueueService, RedisService, StorageService, WebsocketService, AppLoggerService],
+  exports: [
+    QueueService,
+    RedisService,
+    StorageService,
+    WebsocketService,
+    AppLoggerService,
+  ],
 })
 class MockInfrastructureModule {}
 
@@ -279,11 +321,17 @@ describe('Resource management APIs (e2e)', () => {
     );
 
     const listResponse = await api()
-      .get(`${ORGANIZATIONS_BASE_PATH}?search=sidago&isActive=true&page=1&limit=10`)
+      .get(
+        `${ORGANIZATIONS_BASE_PATH}?search=sidago&isActive=true&page=1&limit=10`,
+      )
       .set('Authorization', `Bearer ${manager.accessToken}`)
       .expect(200);
 
-    expect(listResponse.body.data.meta).toEqual({ page: 1, limit: 10, total: 1 });
+    expect(listResponse.body.data.meta).toEqual({
+      page: 1,
+      limit: 10,
+      total: 1,
+    });
     expect(listResponse.body.data.items).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: organizationId })]),
     );
@@ -383,7 +431,9 @@ describe('Resource management APIs (e2e)', () => {
       })
       .expect(400);
 
-    expect(mismatchResponse.body.message).toBe('Parent brand must belong to the same organization');
+    expect(mismatchResponse.body.message).toBe(
+      'Parent brand must belong to the same organization',
+    );
 
     const childBrand = await api()
       .post(BRANDS_BASE_PATH)
@@ -419,7 +469,9 @@ describe('Resource management APIs (e2e)', () => {
       })
       .expect(400);
 
-    expect(selfParentResponse.body.message).toBe('Parent brand cannot reference the same brand');
+    expect(selfParentResponse.body.message).toBe(
+      'Parent brand cannot reference the same brand',
+    );
 
     const deleteOrganizationBlocked = await api()
       .delete(`${ORGANIZATIONS_BASE_PATH}/${firstOrganization.id}`)
@@ -551,8 +603,12 @@ describe('Resource management APIs (e2e)', () => {
 
   it('supports user CRUD with pagination, search, filters, roles, and brand assignments', async () => {
     const manager = await loginAs(MANAGER_EMAIL, MANAGER_PASSWORD);
+    const admin = await loginAs(ADMIN_EMAIL, ADMIN_PASSWORD);
     const agent = await loginAs(AGENT_EMAIL, AGENT_PASSWORD);
     const managerProfile = await getProfile(manager.accessToken);
+    const roles = await listRoles(admin.accessToken);
+    const agentRoleId = findRoleIdByCode(roles, 'agent');
+    const managerRoleId = findRoleIdByCode(roles, 'manager');
 
     const organization = await createOrganization(manager.accessToken, {
       code: 'users-org',
@@ -582,7 +638,7 @@ describe('Resource management APIs (e2e)', () => {
         firstName: 'New',
         lastName: 'User',
         password: 'StrongPassword!123',
-        roleCodes: ['agent'],
+        roleIds: [agentRoleId],
         brandIds: [brandResponse.body.data.id],
       })
       .expect(201);
@@ -627,12 +683,16 @@ describe('Resource management APIs (e2e)', () => {
     );
 
     const userListResponse = await api()
-      .get(`${USERS_BASE_PATH}?search=new.user&roleCode=agent&isActive=true&page=1&limit=10`)
+      .get(
+        `${USERS_BASE_PATH}?search=new.user&roleCode=agent&isActive=true&page=1&limit=10`,
+      )
       .set('Authorization', `Bearer ${manager.accessToken}`)
       .expect(200);
 
     expect(userListResponse.body.data.items).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: userId, email: 'new.user@example.com' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ id: userId, email: 'new.user@example.com' }),
+      ]),
     );
 
     const getUserResponse = await api()
@@ -640,7 +700,9 @@ describe('Resource management APIs (e2e)', () => {
       .set('Authorization', `Bearer ${manager.accessToken}`)
       .expect(200);
 
-    expect(getUserResponse.body.data.brandIds).toEqual([brandResponse.body.data.id]);
+    expect(getUserResponse.body.data.brandIds).toEqual([
+      brandResponse.body.data.id,
+    ]);
 
     const updateUserResponse = await api()
       .patch(`${USERS_BASE_PATH}/${userId}`)
@@ -650,7 +712,7 @@ describe('Resource management APIs (e2e)', () => {
         fullName: 'Updated User',
         isActive: false,
         password: 'EvenStrongerPass!456',
-        roleCodes: ['manager'],
+        roleIds: [managerRoleId],
         brandIds: [],
       })
       .expect(200);
@@ -676,7 +738,9 @@ describe('Resource management APIs (e2e)', () => {
       .set('Authorization', `Bearer ${manager.accessToken}`)
       .expect(403);
 
-    expect(selfDeleteResponse.body.message).toBe('You cannot delete your own account');
+    expect(selfDeleteResponse.body.message).toBe(
+      'You cannot delete your own account',
+    );
 
     await api()
       .delete(`${USERS_BASE_PATH}/${userId}`)
@@ -727,7 +791,10 @@ describe('Resource management APIs (e2e)', () => {
     return request(app.getHttpServer());
   }
 
-  async function loginAs(email: string, password: string): Promise<LoginResult> {
+  async function loginAs(
+    email: string,
+    password: string,
+  ): Promise<LoginResult> {
     const response = await api()
       .post(`${AUTH_BASE_PATH}/login`)
       .send({ email, password })
@@ -736,7 +803,10 @@ describe('Resource management APIs (e2e)', () => {
     return response.body.data;
   }
 
-  async function createOrganization(accessToken: string, payload: Record<string, unknown>) {
+  async function createOrganization(
+    accessToken: string,
+    payload: Record<string, unknown>,
+  ) {
     const response = await api()
       .post(ORGANIZATIONS_BASE_PATH)
       .set('Authorization', `Bearer ${accessToken}`)
@@ -753,5 +823,23 @@ describe('Resource management APIs (e2e)', () => {
       .expect(200);
 
     return response.body.data;
+  }
+
+  async function listRoles(accessToken: string): Promise<RoleSummary[]> {
+    const response = await api()
+      .get(ROLES_BASE_PATH)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    return response.body.data;
+  }
+
+  function findRoleIdByCode(roles: RoleSummary[], code: string): string {
+    const role = roles.find((item) => item.code === code);
+    if (!role) {
+      throw new Error(`Role "${code}" not found in seeded test data`);
+    }
+
+    return role.id;
   }
 });

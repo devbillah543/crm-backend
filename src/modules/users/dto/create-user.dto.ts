@@ -37,7 +37,8 @@ export class CreateUserDto {
 
   @ApiProperty({
     example: 'StrongPassword!123',
-    description: 'Minimum 8 characters and must include upper, lower, number, and special character.',
+    description:
+      'Minimum 8 characters and must include upper, lower, number, and special character.',
   })
   @IsString()
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/, {
@@ -53,13 +54,14 @@ export class CreateUserDto {
 
   @ApiPropertyOptional({
     type: [String],
-    example: ['manager'],
+    example: ['de305d54-75b4-431b-adb2-eb6b9e546014'],
+    description: 'Role identifiers assigned to the user.',
   })
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
-  @IsString({ each: true })
-  roleCodes?: string[];
+  @IsUUID('4', { each: true })
+  roleIds?: string[];
 
   @ApiPropertyOptional({
     type: [String],

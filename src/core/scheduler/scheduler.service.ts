@@ -6,8 +6,6 @@ export class SchedulerService {
   constructor(private readonly redisService: RedisService) {}
 
   async acquireLock(key: string, ttlSeconds = 60): Promise<boolean> {
-    const client = this.redisService.getClient();
-    const result = await client.set(key, '1', 'EX', ttlSeconds, 'NX');
-    return result === 'OK';
+    return this.redisService.setIfNotExists(key, '1', ttlSeconds);
   }
 }

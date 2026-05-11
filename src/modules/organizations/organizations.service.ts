@@ -6,15 +6,20 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository, WhereExpressionBuilder } from 'typeorm';
 import { normalizePagination } from '../../common/utils/pagination.util';
+import { CacheService } from '../../core/cache/cache.service';
 import { Brand } from '../../database/entities/brand.entity';
 import { Organization } from '../../database/entities/organization.entity';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { ListOrganizationsQueryDto } from './dto/list-organizations-query.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 
+const ORGANIZATIONS_CACHE_NAMESPACE = 'organizations';
+const ORGANIZATIONS_CACHE_TTL_SECONDS = 120;
+
 @Injectable()
 export class OrganizationsService {
   constructor(
+    private readonly cacheService: CacheService,
     @InjectRepository(Organization)
     private readonly organizationRepository: Repository<Organization>,
     @InjectRepository(Brand)
@@ -22,44 +27,64 @@ export class OrganizationsService {
   ) {}
 
   async findAll(query: ListOrganizationsQueryDto) {
-    const normalized = normalizePagination(query);
-    const builder = this.organizationRepository.createQueryBuilder('organization');
+    return this.cacheService.rememberVersioned(
+      ORGANIZATIONS_CACHE_NAMESPACE,
+      `findAll:${serializeCacheKey(query)}`,
+      ORGANIZATIONS_CACHE_TTL_SECONDS,
+      async () => {
+        const normalized = normalizePagination(query);
+        const builder =
+          this.organizationRepository.createQueryBuilder('organization');
 
-    if (query.search?.trim()) {
-      const search = `%${query.search.trim().toLowerCase()}%`;
-      builder.andWhere(
-        new Brackets((qb: WhereExpressionBuilder) => {
-          qb.where('LOWER(organization.code) LIKE :search', { search }).orWhere(
-            'LOWER(organization.display_name) LIKE :search',
-            { search },
+        if (query.search?.trim()) {
+          const search = `%${query.search.trim().toLowerCase()}%`;
+          builder.andWhere(
+            new Brackets((qb: WhereExpressionBuilder) => {
+              qb.where('LOWER(organization.code) LIKE :search', {
+                search,
+              }).orWhere('LOWER(organization.display_name) LIKE :search', {
+                search,
+              });
+            }),
           );
-        }),
-      );
-    }
+        }
 
-    if (query.isActive !== undefined) {
-      builder.andWhere('organization.is_active = :isActive', { isActive: query.isActive });
-    }
+        if (query.isActive !== undefined) {
+          builder.andWhere('organization.is_active = :isActive', {
+            isActive: query.isActive,
+          });
+        }
 
-    const [organizations, total] = await builder
-      .orderBy('organization.created_at', 'DESC')
-      .skip((normalized.page - 1) * normalized.limit)
-      .take(normalized.limit)
-      .getManyAndCount();
+        const [organizations, total] = await builder
+          .orderBy('organization.created_at', 'DESC')
+          .skip((normalized.page - 1) * normalized.limit)
+          .take(normalized.limit)
+          .getManyAndCount();
 
-    return {
-      items: organizations.map((organization) => this.serialize(organization)),
-      meta: {
-        page: normalized.page,
-        limit: normalized.limit,
-        total,
+        return {
+          items: organizations.map((organization) =>
+            this.serialize(organization),
+          ),
+          meta: {
+            page: normalized.page,
+            limit: normalized.limit,
+            total,
+          },
+        };
       },
-    };
+    );
   }
 
   async findOne(id: string) {
-    const organization = await this.findByIdOrFail(id);
-    return this.serialize(organization);
+    return this.cacheService.rememberVersioned(
+      ORGANIZATIONS_CACHE_NAMESPACE,
+      `findOne:${id}`,
+      ORGANIZATIONS_CACHE_TTL_SECONDS,
+      async () => {
+        const organization = await this.findByIdOrFail(id);
+        return this.serialize(organization);
+      },
+    );
   }
 
   async create(dto: CreateOrganizationDto) {
@@ -73,7 +98,9 @@ export class OrganizationsService {
       isActive: dto.isActive ?? true,
     });
 
-    const savedOrganization = await this.organizationRepository.save(organization);
+    const savedOrganization =
+      await this.organizationRepository.save(organization);
+    await this.cacheService.invalidateNamespace(ORGANIZATIONS_CACHE_NAMESPACE);
     return this.serialize(savedOrganization);
   }
 
@@ -90,7 +117,8 @@ export class OrganizationsService {
     }
 
     if (dto.description !== undefined) {
-      organization.description = normalizeOptionalString(dto.description) ?? null;
+      organization.description =
+        normalizeOptionalString(dto.description) ?? null;
     }
 
     if (dto.icon !== undefined) {
@@ -101,7 +129,9 @@ export class OrganizationsService {
       organization.isActive = dto.isActive;
     }
 
-    const savedOrganization = await this.organizationRepository.save(organization);
+    const savedOrganization =
+      await this.organizationRepository.save(organization);
+    await this.cacheService.invalidateNamespace(ORGANIZATIONS_CACHE_NAMESPACE);
     return this.serialize(savedOrganization);
   }
 
@@ -112,14 +142,19 @@ export class OrganizationsService {
     });
 
     if (brandCount > 0) {
-      throw new ConflictException('Organization cannot be deleted while brands are assigned to it');
+      throw new ConflictException(
+        'Organization cannot be deleted while brands are assigned to it',
+      );
     }
 
     await this.organizationRepository.softRemove(organization);
+    await this.cacheService.invalidateNamespace(ORGANIZATIONS_CACHE_NAMESPACE);
   }
 
   private async findByIdOrFail(id: string) {
-    const organization = await this.organizationRepository.findOne({ where: { id } });
+    const organization = await this.organizationRepository.findOne({
+      where: { id },
+    });
 
     if (!organization) {
       throw new NotFoundException('Organization not found');
@@ -163,4 +198,12 @@ function normalizeOptionalString(value: string | undefined) {
 
   const normalized = value.trim();
   return normalized ? normalized : null;
+}
+
+function serializeCacheKey(query: object) {
+  return Object.entries(query)
+    .filter(([, value]) => value !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}:${String(value)}`)
+    .join('|');
 }

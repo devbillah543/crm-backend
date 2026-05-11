@@ -5,17 +5,22 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, QueryFailedError, Repository, WhereExpressionBuilder } from 'typeorm';
+import { Brackets, Repository, WhereExpressionBuilder } from 'typeorm';
 import { normalizePagination } from '../../common/utils/pagination.util';
+import { CacheService } from '../../core/cache/cache.service';
 import { Brand } from '../../database/entities/brand.entity';
 import { Organization } from '../../database/entities/organization.entity';
 import { CreateBrandDto } from './dto/create-brand.dto';
 import { ListBrandsQueryDto } from './dto/list-brands-query.dto';
 import { UpdateBrandDto } from './dto/update-brand.dto';
 
+const BRANDS_CACHE_NAMESPACE = 'brands';
+const BRANDS_CACHE_TTL_SECONDS = 120;
+
 @Injectable()
 export class BrandsService {
   constructor(
+    private readonly cacheService: CacheService,
     @InjectRepository(Brand)
     private readonly brandRepository: Repository<Brand>,
     @InjectRepository(Organization)
@@ -23,50 +28,66 @@ export class BrandsService {
   ) {}
 
   async findAll(query: ListBrandsQueryDto) {
-    const normalized = normalizePagination(query);
-    const builder = this.brandRepository.createQueryBuilder('brand');
+    return this.cacheService.rememberVersioned(
+      BRANDS_CACHE_NAMESPACE,
+      `findAll:${serializeCacheKey(query)}`,
+      BRANDS_CACHE_TTL_SECONDS,
+      async () => {
+        const normalized = normalizePagination(query);
+        const builder = this.brandRepository.createQueryBuilder('brand');
 
-    if (query.search?.trim()) {
-      const search = `%${query.search.trim().toLowerCase()}%`;
-      builder.andWhere(
-        new Brackets((qb: WhereExpressionBuilder) => {
-          qb.where('LOWER(brand.code) LIKE :search', { search }).orWhere(
-            'LOWER(brand.display_name) LIKE :search',
-            { search },
+        if (query.search?.trim()) {
+          const search = `%${query.search.trim().toLowerCase()}%`;
+          builder.andWhere(
+            new Brackets((qb: WhereExpressionBuilder) => {
+              qb.where('LOWER(brand.code) LIKE :search', { search }).orWhere(
+                'LOWER(brand.display_name) LIKE :search',
+                { search },
+              );
+            }),
           );
-        }),
-      );
-    }
+        }
 
-    if (query.organizationId) {
-      builder.andWhere('brand.organization_id = :organizationId', {
-        organizationId: query.organizationId,
-      });
-    }
+        if (query.organizationId) {
+          builder.andWhere('brand.organization_id = :organizationId', {
+            organizationId: query.organizationId,
+          });
+        }
 
-    if (query.isActive !== undefined) {
-      builder.andWhere('brand.is_active = :isActive', { isActive: query.isActive });
-    }
+        if (query.isActive !== undefined) {
+          builder.andWhere('brand.is_active = :isActive', {
+            isActive: query.isActive,
+          });
+        }
 
-    const [brands, total] = await builder
-      .orderBy('brand.created_at', 'DESC')
-      .skip((normalized.page - 1) * normalized.limit)
-      .take(normalized.limit)
-      .getManyAndCount();
+        const [brands, total] = await builder
+          .orderBy('brand.created_at', 'DESC')
+          .skip((normalized.page - 1) * normalized.limit)
+          .take(normalized.limit)
+          .getManyAndCount();
 
-    return {
-      items: brands.map((brand) => this.serialize(brand)),
-      meta: {
-        page: normalized.page,
-        limit: normalized.limit,
-        total,
+        return {
+          items: brands.map((brand) => this.serialize(brand)),
+          meta: {
+            page: normalized.page,
+            limit: normalized.limit,
+            total,
+          },
+        };
       },
-    };
+    );
   }
 
   async findOne(id: string) {
-    const brand = await this.findByIdOrFail(id);
-    return this.serialize(brand);
+    return this.cacheService.rememberVersioned(
+      BRANDS_CACHE_NAMESPACE,
+      `findOne:${id}`,
+      BRANDS_CACHE_TTL_SECONDS,
+      async () => {
+        const brand = await this.findByIdOrFail(id);
+        return this.serialize(brand);
+      },
+    );
   }
 
   async create(dto: CreateBrandDto) {
@@ -84,25 +105,34 @@ export class BrandsService {
     });
 
     const savedBrand = await this.brandRepository.save(brand);
+    await this.cacheService.invalidateNamespace(BRANDS_CACHE_NAMESPACE);
     return this.serialize(savedBrand);
   }
 
   async update(id: string, dto: UpdateBrandDto) {
     const brand = await this.findByIdOrFail(id);
     const nextOrganizationId = dto.organizationId ?? brand.organizationId;
-    const nextParentBrandId = dto.parentBrandId !== undefined ? dto.parentBrandId : brand.parentBrandId;
+    const nextParentBrandId =
+      dto.parentBrandId !== undefined ? dto.parentBrandId : brand.parentBrandId;
 
     if (dto.code && normalizeCode(dto.code) !== brand.code) {
       await this.ensureCodeIsUnique(dto.code, id);
       brand.code = normalizeCode(dto.code);
     }
 
-    if (dto.organizationId !== undefined && dto.organizationId !== brand.organizationId) {
+    if (
+      dto.organizationId !== undefined &&
+      dto.organizationId !== brand.organizationId
+    ) {
       await this.ensureOrganizationExists(dto.organizationId);
       brand.organizationId = dto.organizationId;
     }
 
-    await this.validateParentBrand(id, nextOrganizationId, nextParentBrandId ?? undefined);
+    await this.validateParentBrand(
+      id,
+      nextOrganizationId,
+      nextParentBrandId ?? undefined,
+    );
 
     if (dto.parentBrandId !== undefined) {
       brand.parentBrandId = dto.parentBrandId ?? null;
@@ -121,12 +151,14 @@ export class BrandsService {
     }
 
     const savedBrand = await this.brandRepository.save(brand);
+    await this.cacheService.invalidateNamespace(BRANDS_CACHE_NAMESPACE);
     return this.serialize(savedBrand);
   }
 
   async remove(id: string) {
     const brand = await this.findByIdOrFail(id);
     await this.brandRepository.softRemove(brand);
+    await this.cacheService.invalidateNamespace(BRANDS_CACHE_NAMESPACE);
   }
 
   private async findByIdOrFail(id: string) {
@@ -173,7 +205,9 @@ export class BrandsService {
     }
 
     if (brandId && parentBrandId === brandId) {
-      throw new BadRequestException('Parent brand cannot reference the same brand');
+      throw new BadRequestException(
+        'Parent brand cannot reference the same brand',
+      );
     }
 
     const parentBrand = await this.brandRepository.findOne({
@@ -185,7 +219,9 @@ export class BrandsService {
     }
 
     if (parentBrand.organizationId !== organizationId) {
-      throw new BadRequestException('Parent brand must belong to the same organization');
+      throw new BadRequestException(
+        'Parent brand must belong to the same organization',
+      );
     }
   }
 
@@ -215,4 +251,12 @@ function normalizeOptionalString(value: string | undefined) {
 
   const normalized = value.trim();
   return normalized ? normalized : null;
+}
+
+function serializeCacheKey(query: object) {
+  return Object.entries(query)
+    .filter(([, value]) => value !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}:${String(value)}`)
+    .join('|');
 }

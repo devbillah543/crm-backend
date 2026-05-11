@@ -7,64 +7,86 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository, WhereExpressionBuilder } from 'typeorm';
 import { normalizePagination } from '../../common/utils/pagination.util';
 import { JwtUser } from '../../common/types/jwt-user.type';
+import { CacheService } from '../../core/cache/cache.service';
 import { Company } from '../../database/entities/company.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 
+const COMPANIES_CACHE_NAMESPACE = 'companies';
+const COMPANIES_CACHE_TTL_SECONDS = 120;
+
 @Injectable()
 export class CompaniesService {
   constructor(
+    private readonly cacheService: CacheService,
     @InjectRepository(Company)
     private readonly companyRepository: Repository<Company>,
   ) {}
 
   async findAll(query: ListCompaniesQueryDto) {
-    const normalized = normalizePagination(query);
-    const builder = this.companyRepository.createQueryBuilder('company');
+    return this.cacheService.rememberVersioned(
+      COMPANIES_CACHE_NAMESPACE,
+      `findAll:${serializeCacheKey(query)}`,
+      COMPANIES_CACHE_TTL_SECONDS,
+      async () => {
+        const normalized = normalizePagination(query);
+        const builder = this.companyRepository.createQueryBuilder('company');
 
-    if (query.search?.trim()) {
-      const search = `%${query.search.trim().toLowerCase()}%`;
-      builder.andWhere(
-        new Brackets((qb: WhereExpressionBuilder) => {
-          qb.where('LOWER(company.company_symbol) LIKE :search', { search })
-            .orWhere('LOWER(company.company_name) LIKE :search', { search })
-            .orWhere('LOWER(COALESCE(company.description, \'\')) LIKE :search', { search });
-        }),
-      );
-    }
+        if (query.search?.trim()) {
+          const search = `%${query.search.trim().toLowerCase()}%`;
+          builder.andWhere(
+            new Brackets((qb: WhereExpressionBuilder) => {
+              qb.where('LOWER(company.company_symbol) LIKE :search', { search })
+                .orWhere('LOWER(company.company_name) LIKE :search', { search })
+                .orWhere(
+                  "LOWER(COALESCE(company.description, '')) LIKE :search",
+                  { search },
+                );
+            }),
+          );
+        }
 
-    if (query.companyType?.trim()) {
-      builder.andWhere('LOWER(company.company_type) = :companyType', {
-        companyType: query.companyType.trim().toLowerCase(),
-      });
-    }
+        if (query.companyType?.trim()) {
+          builder.andWhere('LOWER(company.company_type) = :companyType', {
+            companyType: query.companyType.trim().toLowerCase(),
+          });
+        }
 
-    if (query.country?.trim()) {
-      builder.andWhere('LOWER(company.country) = :country', {
-        country: query.country.trim().toLowerCase(),
-      });
-    }
+        if (query.country?.trim()) {
+          builder.andWhere('LOWER(company.country) = :country', {
+            country: query.country.trim().toLowerCase(),
+          });
+        }
 
-    const [companies, total] = await builder
-      .orderBy('company.created_at', 'DESC')
-      .skip((normalized.page - 1) * normalized.limit)
-      .take(normalized.limit)
-      .getManyAndCount();
+        const [companies, total] = await builder
+          .orderBy('company.created_at', 'DESC')
+          .skip((normalized.page - 1) * normalized.limit)
+          .take(normalized.limit)
+          .getManyAndCount();
 
-    return {
-      items: companies.map((company) => this.serialize(company)),
-      meta: {
-        page: normalized.page,
-        limit: normalized.limit,
-        total,
+        return {
+          items: companies.map((company) => this.serialize(company)),
+          meta: {
+            page: normalized.page,
+            limit: normalized.limit,
+            total,
+          },
+        };
       },
-    };
+    );
   }
 
   async findOne(id: string) {
-    const company = await this.findByIdOrFail(id);
-    return this.serialize(company);
+    return this.cacheService.rememberVersioned(
+      COMPANIES_CACHE_NAMESPACE,
+      `findOne:${id}`,
+      COMPANIES_CACHE_TTL_SECONDS,
+      async () => {
+        const company = await this.findByIdOrFail(id);
+        return this.serialize(company);
+      },
+    );
   }
 
   async create(dto: CreateCompanyDto, user: JwtUser) {
@@ -74,8 +96,11 @@ export class CompaniesService {
       companySymbol: normalizeUppercase(dto.companySymbol),
       companyName: dto.companyName.trim(),
       companyType: normalizeOptionalString(dto.companyType) ?? null,
-      previousCompanySymbol: normalizeOptionalUppercase(dto.previousCompanySymbol),
-      previousCompanyName: normalizeOptionalString(dto.previousCompanyName) ?? null,
+      previousCompanySymbol: normalizeOptionalUppercase(
+        dto.previousCompanySymbol,
+      ),
+      previousCompanyName:
+        normalizeOptionalString(dto.previousCompanyName) ?? null,
       cusip: normalizeOptionalString(dto.cusip) ?? null,
       cik: normalizeOptionalString(dto.cik) ?? null,
       country: normalizeOptionalString(dto.country) ?? null,
@@ -87,18 +112,23 @@ export class CompaniesService {
       icon: normalizeOptionalString(dto.icon) ?? null,
       twitter: normalizeOptionalString(dto.twitter) ?? null,
       description: normalizeOptionalString(dto.description) ?? null,
-      estimatedMarketcap: normalizeOptionalString(dto.estimatedMarketcap) ?? null,
+      estimatedMarketcap:
+        normalizeOptionalString(dto.estimatedMarketcap) ?? null,
       createdByUserId: user.userId,
     });
 
     const savedCompany = await this.companyRepository.save(company);
+    await this.cacheService.invalidateNamespace(COMPANIES_CACHE_NAMESPACE);
     return this.serialize(savedCompany);
   }
 
   async update(id: string, dto: UpdateCompanyDto) {
     const company = await this.findByIdOrFail(id);
 
-    if (dto.companySymbol && normalizeUppercase(dto.companySymbol) !== company.companySymbol) {
+    if (
+      dto.companySymbol &&
+      normalizeUppercase(dto.companySymbol) !== company.companySymbol
+    ) {
       await this.ensureSymbolIsUnique(dto.companySymbol, id);
       company.companySymbol = normalizeUppercase(dto.companySymbol);
     }
@@ -112,11 +142,13 @@ export class CompaniesService {
     }
 
     if (dto.previousCompanySymbol !== undefined) {
-      company.previousCompanySymbol = normalizeOptionalUppercase(dto.previousCompanySymbol) ?? null;
+      company.previousCompanySymbol =
+        normalizeOptionalUppercase(dto.previousCompanySymbol) ?? null;
     }
 
     if (dto.previousCompanyName !== undefined) {
-      company.previousCompanyName = normalizeOptionalString(dto.previousCompanyName) ?? null;
+      company.previousCompanyName =
+        normalizeOptionalString(dto.previousCompanyName) ?? null;
     }
 
     if (dto.cusip !== undefined) {
@@ -164,16 +196,19 @@ export class CompaniesService {
     }
 
     if (dto.estimatedMarketcap !== undefined) {
-      company.estimatedMarketcap = normalizeOptionalString(dto.estimatedMarketcap) ?? null;
+      company.estimatedMarketcap =
+        normalizeOptionalString(dto.estimatedMarketcap) ?? null;
     }
 
     const savedCompany = await this.companyRepository.save(company);
+    await this.cacheService.invalidateNamespace(COMPANIES_CACHE_NAMESPACE);
     return this.serialize(savedCompany);
   }
 
   async remove(id: string) {
     const company = await this.findByIdOrFail(id);
     await this.companyRepository.softRemove(company);
+    await this.cacheService.invalidateNamespace(COMPANIES_CACHE_NAMESPACE);
   }
 
   private async findByIdOrFail(id: string) {
@@ -243,4 +278,12 @@ function normalizeOptionalString(value: string | undefined) {
 
   const normalized = value.trim();
   return normalized ? normalized : null;
+}
+
+function serializeCacheKey(query: object) {
+  return Object.entries(query)
+    .filter(([, value]) => value !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}:${String(value)}`)
+    .join('|');
 }
